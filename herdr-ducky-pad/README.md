@@ -1,5 +1,7 @@
 # duckyPad Herdr Bridge
 
+> 繁體中文版 → [README.zh-TW.md](README.zh-TW.md)
+
 A [herdr](https://herdr.dev) plugin that drives a **duckyPad** (STM32F072 EVO
 macropad) from herdr's agent state.
 
@@ -98,6 +100,23 @@ program it with the STM32 **DfuSe** tool or `dfu-util`. The full procedure
 > this code, but links a different libc/startup and produces different bytes —
 > that build is **validation-only**, not the flashable image.
 
+### No-Keil shortcut: a pre-built `.dfu`
+
+If you don't have Keil, a pre-built **GCC** image of this firmware ships in the
+repo and can be flashed directly with `dfu-util` (no Keil, no cross-toolchain):
+
+```bash
+# hold the pad's DFU button while plugging in, then (see the main repo doc for
+# the exact flags / recovery):
+dfu-util --dev 0483:df11 -a 0 -D ../firmware/duckypad_herdr.dfu
+```
+
+> **Experimental.** This is a plain `arm-none-eabi-gcc` build — it compiles and
+> has a valid vector table, but it is the *validation* build (different
+> libc/startup than the blessed Keil image), so it may or may not boot on your
+> pad. DFU flashing is **recoverable**: if it doesn't work, re-flash the stock
+> `../firmware/duckypad_v3.0.4.dfu`. The guaranteed flashable image remains the
+> **Keil** output above.
 ## End-to-end test (with the pad)
 
 1. **Build & flash the firmware** (see [Building & flashing the firmware](#building--flashing-the-firmware) above).
