@@ -80,10 +80,27 @@ The daemon still connects to herdr and logs every HID write it *would* send
 the physical device. If the pad isn't plugged in, the daemon also falls back
 to dry run automatically.
 
+## Building & flashing the firmware
+
+The pad side is the stock duckyPad EVO firmware plus the three herdr
+custom-HID commands. Build it with **Keil µVision** (ST ships a free MDK
+license for the STM32F072 "F0" parts):
+
+1. Open `../firmware/evo/MDK-ARM/lul.uvprojx`.
+2. **Rebuild** (F7).
+
+Then **flash via DFU** — hold the pad's `DFU` button while plugging it in, then
+program it with the STM32 **DfuSe** tool or `dfu-util`. The full procedure
+(screenshots + the `dfu-util` one-liner, `0483:df11`) is in the main repo:
+[`firmware_updates_and_version_history.md`](../firmware_updates_and_version_history.md).
+
+> Flash the **Keil** output. A plain `arm-none-eabi-gcc` build also compiles
+> this code, but links a different libc/startup and produces different bytes —
+> that build is **validation-only**, not the flashable image.
+
 ## End-to-end test (with the pad)
 
-1. **Flash the firmware** in Keil µVision: open
-   `../firmware/evo/MDK-ARM/lul.uvprojx`, build, and download to the pad.
+1. **Build & flash the firmware** (see [Building & flashing the firmware](#building--flashing-the-firmware) above).
 2. **Plug in** the duckyPad (USB) and start **herdr** in a real session with a
    few agents.
 3. **Run the daemon** (or let the plugin start it):
