@@ -19,10 +19,12 @@
 
 #define HID_DP_TO_PC_USAGE_ID 4
 #define HID_TX_BUF_SIZE CUSTOM_HID_EPIN_SIZE
+#define HERDR_OLED_MAX_TEXT 56
 uint8_t hid_tx_buf[HID_TX_BUF_SIZE];
 
 volatile uint8_t needs_gv_save;
 volatile uint8_t is_in_file_access_mode;
+volatile uint8_t herdr_mode = 0;
 
 void enter_file_access_mode(void)
 {
@@ -95,6 +97,63 @@ uint8_t parse_hid_goto_profile_by_name(const uint8_t* this_buf)
 }
 
 #define DUMP_PGV_MAX_COPY_SIZE 60
+
+// ---------- herdr light-board support ----------
+
+// Set all 15 NeoPixels to a per-key RGB frame supplied by the herdr plugin.
+// Animations are disabled per-pixel so the colors persist until the next frame.
+void herdr_set_rgb_frame(uint8_t* this_msg)
+{
+  for(uint8_t i = 0; i < NEOPIXEL_COUNT; i++)
+  {
+    set_pixel_3color_update_buffer(i, this_msg[3 + i*3], this_msg[3 + i*3 + 1], this_msg[3 + i*3 + 2]);
+  }
+  neopixel_draw_current_buffer();
+}
+
+// Render a line-oriented text blob (Font_6x10) onto the OLED. '\n' starts a new
+// line; the panel wraps/stops at its edges.
+void herdr_set_oled_text(uint8_t* this_msg)
+{
+  uint8_t len = this_msg[3];
+  if(len > HERDR_OLED_MAX_TEXT) len = HERDR_OLED_MAX_TEXT;
+  ssd1306_Fill(Black);
+  uint8_t x = 0;
+  uint8_t y = 0;
+  for(uint8_t i = 0; i < len; i++)
+  {
+    char ch = this_msg[4 + i];
+    if(ch == '\n')
+    {
+      x = 0;
+      y += Font_6x10.FontHeight;
+      if(y >= SSD1306_HEIGHT) break;
+      continue;
+    }
+    if(x + Font_6x10.FontWidth > 128)
+    {
+      x = 0;
+      y += Font_6x10.FontHeight;
+      if(y >= SSD1306_HEIGHT) break;
+    }
+    ssd1306_SetCursor(x, y);
+    ssd1306_WriteChar(ch, Font_6x10, White);
+    x += Font_6x10.FontWidth;
+  }
+  ssd1306_UpdateScreen();
+}
+
+// Emit a herdr key-press event on the custom IN endpoint (Report 4).
+void send_herdr_key_event(uint8_t slot)
+{
+  uint8_t buf[CUSTOM_HID_EPIN_SIZE];
+  memset(buf, 0, sizeof(buf));
+  buf[0] = HID_DP_TO_PC_USAGE_ID; // 4
+  buf[1] = HERDR_IN_KEY_EVENT;    // 0xF0
+  buf[2] = 0;                     // OK
+  buf[3] = slot;                  // 1-based slot (1..15)
+  USBD_CUSTOM_HID_SendReport(&hUsbDeviceFS, buf, CUSTOM_HID_EPIN_SIZE);
+}
 
 void parse_hid_msg(uint8_t* this_msg)
 {
@@ -173,6 +232,33 @@ void parse_hid_msg(uint8_t* this_msg)
     return;
   }
   /*
+    SET_RGB_FRAME (34): set all 15 NeoPixels from a per-key RGB frame.
+    [0]=5 [1]=0 [2]=34 [3..47]=15x(R,G,B) in key order. No response.
+  */
+  if(command_type == HID_COMMAND_SET_RGB_FRAME)
+  {
+    herdr_set_rgb_frame(this_msg);
+    return;
+  }
+  /*
+    SET_OLED_TEXT (35): render a line-oriented text blob on the OLED.
+    [0]=5 [1]=0 [2]=35 [3]=len [4..]=text (may contain '\n'). No response.
+  */
+  if(command_type == HID_COMMAND_SET_OLED_TEXT)
+  {
+    herdr_set_oled_text(this_msg);
+    return;
+  }
+  /*
+    SET_HERDR_MODE (36): enable/disable herdr light-board mode.
+    [0]=5 [1]=0 [2]=36 [3]=0/1. No response.
+  */
+  if(command_type == HID_COMMAND_SET_HERDR_MODE)
+  {
+    herdr_mode = this_msg[3] ? 1 : 0;
+    return;
+  }
+  /*
     duckyPad to PC
     [0]   Usage ID, always 4
     [1]   Unused
@@ -220,7 +306,7 @@ void parse_hid_msg(uint8_t* this_msg)
     hid_tx_buf[10] = (uint8_t)(get_uuid() >> 24);
     hid_tx_buf[11] = current_profile_number;
     hid_tx_buf[12] = is_sleeping;
-    hid_tx_buf[13] = is_rtc_valid;
+    hid_tx_buf[13] = is_rtc_valid();
     int16_t utc_offset_minutes = get_utc_offset();
     memcpy(hid_tx_buf+14, &utc_offset_minutes, sizeof(utc_offset_minutes));
     uint32_t current_time = get_unix_ts(&hrtc);

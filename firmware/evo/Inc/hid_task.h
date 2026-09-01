@@ -29,6 +29,9 @@
 
 #define HID_COMMAND_DUMP_SD 32
 #define HID_COMMAND_OPEN_FILE_FOR_READING 33
+#define HID_COMMAND_SET_RGB_FRAME 34
+#define HID_COMMAND_SET_OLED_TEXT 35
+#define HID_COMMAND_SET_HERDR_MODE 36
 
 #define HID_RESPONSE_OK 0
 #define HID_RESPONSE_GENERIC_ERROR 1
@@ -37,6 +40,8 @@
 #define HID_RESPONSE_NO_PROFILE 4
 #define HID_RESPONSE_INVALID_ARG 5
 #define HID_RESPONSE_UNKNOWN_CMD 6
+
+#define HERDR_IN_KEY_EVENT 0xF0
 
 #define HID_USAGE_ID_KEYBOARD 1
 #define HID_USAGE_ID_MEDIA_KEY 2
@@ -47,12 +52,14 @@
 #define HID_FILE_READ_PAYLOAD_SIZE 61
 
 void handle_hid_command(uint8_t* hid_rx_buf);
+void send_herdr_key_event(uint8_t slot);
 void sd_walk(uint8_t* res_buf);
 void md5_test(void);
 uint8_t make_file_walk_hid_packet(char* file_name, char* profile_name, uint8_t* tx_buf);
 
 extern volatile uint8_t is_in_file_access_mode;
 extern volatile uint8_t needs_gv_save;
+extern volatile uint8_t herdr_mode;
 
 #ifdef __cplusplus
 }
