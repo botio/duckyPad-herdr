@@ -1,0 +1,24 @@
+# herdr plugin: duckyPad bridge
+#
+# A duckyPad (STM32F072 macropad) is exposed as a custom-HID device
+# (VID 0x483 / PID 0xd11c). This plugin's daemon opens that device and:
+#   * lights one NeoPixel key per herdr agent, colored by the agent's state,
+#   * shows a short list of the mapped agents on the pad's OLED,
+#   * on a key press, focuses that agent's pane in herdr.
+#
+# Build the daemon, then it launches once (long-lived) when herdr's API is
+# ready. Set DUCKY_DRY_RUN=1 to run without the physical pad (logs HID writes).
+
+id = "ducky.pad-bridge"
+name = "duckyPad Herdr Bridge"
+version = "0.1.0"
+min_herdr_version = "0.8.0"
+description = "Light a duckyPad from herdr agent state: N agents -> N keys, key color = state, press a key to focus that agent."
+platforms = ["linux", "macos"]
+
+[[build]]
+command = ["cargo", "build", "--release"]
+
+# Long-lived daemon, launched once after the herdr API is ready.
+[[startup]]
+command = ["./target/release/ducky-pad-bridge"]
