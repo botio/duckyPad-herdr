@@ -91,24 +91,50 @@ fn pick_name(a: &str, b: &str, c: &str, d: &str) -> String {
     }
     "agent".to_string()
 }
+/// Sticky assignment of herdr agents to the 15 pad keys.
+///
+/// Identity is `pane_id`. A new agent takes the lowest free slot, visited in
+/// `agent.list` order; an existing agent keeps its slot no matter how the
+/// list reorders or how states change; a slot frees when its agent
+/// disappears. `update` is idempotent for an unchanged list, so it can be
+/// called on every pad push and on every key press without side effects.
+#[derive(Debug, Clone, Default)]
+pub struct SlotMap {
+    assign: std::collections::HashMap<String, usize>,
+}
 
-/// Assign agents to the 15 slots by state priority. Overflow agents are dropped
-/// (their keys stay unlit). Ties break by `pane_id` for determinism.
-pub fn assign_slots<'a>(agents: &'a [Agent]) -> Vec<Option<&'a Agent>> {
-    let mut order: Vec<&Agent> = agents.iter().collect();
-    order.sort_by(|a, b| {
-        a.state
-            .rank()
-            .cmp(&b.state.rank())
-            .then_with(|| a.pane_id.cmp(&b.pane_id))
-    });
-    let mut slots: Vec<Option<&Agent>> = vec![None; SLOTS];
-    for (i, a) in order.iter().enumerate() {
-        if i < SLOTS {
-            slots[i] = Some(*a);
+impl SlotMap {
+    /// Reconcile with a fresh `agent.list`. Returns the 15 slots as
+    /// `Vec<Option<&Agent>>` (index = key number - 1); overflow agents
+    /// (more than 15 in the list) stay unlit until a slot frees.
+    pub fn update<'a>(&mut self, agents: &'a [Agent]) -> Vec<Option<&'a Agent>> {
+        let seen: std::collections::HashSet<&str> =
+            agents.iter().map(|a| a.pane_id.as_str()).collect();
+        self.assign.retain(|pane_id, _| seen.contains(pane_id.as_str()));
+
+        let mut used = [false; SLOTS];
+        for &slot in self.assign.values() {
+            used[slot] = true;
         }
+        for a in agents {
+            if self.assign.contains_key(&a.pane_id) {
+                continue; // keeps its slot
+            }
+            let slot = used.iter().position(|u| !*u).unwrap_or(SLOTS);
+            if slot < SLOTS {
+                used[slot] = true;
+                self.assign.insert(a.pane_id.clone(), slot);
+            }
+        }
+
+        let mut slots: Vec<Option<&Agent>> = vec![None; SLOTS];
+        for a in agents {
+            if let Some(&slot) = self.assign.get(&a.pane_id) {
+                slots[slot] = Some(a);
+            }
+        }
+        slots
     }
-    slots
 }
 
 /// Encode the 15-slot frame as 45 bytes: key `i` -> bytes `[3+i*3, 4+i*3, 5+i*3]`
@@ -187,38 +213,142 @@ mod tests {
     }
 
     #[test]
-    fn state_priority_blocked_first() {
+    fn new_agents_take_lowest_free_slots_in_list_order() {
+        let mut map = SlotMap::default();
         let agents = vec![
             agent("p-idle", AgentState::Idle),
             agent("p-blocked", AgentState::Blocked),
             agent("p-working", AgentState::Working),
             agent("p-done", AgentState::Done),
         ];
-        let slots = assign_slots(&agents);
-        assert_eq!(slots[0].unwrap().pane_id, "p-blocked");
-        assert_eq!(slots[1].unwrap().pane_id, "p-done");
+        let slots = map.update(&agents);
+        // List order, NOT state priority: the first agent in the list gets
+        // slot 0 even though it is only idle.
+        assert_eq!(slots[0].unwrap().pane_id, "p-idle");
+        assert_eq!(slots[1].unwrap().pane_id, "p-blocked");
         assert_eq!(slots[2].unwrap().pane_id, "p-working");
-        assert_eq!(slots[3].unwrap().pane_id, "p-idle");
+        assert_eq!(slots[3].unwrap().pane_id, "p-done");
+    }
+
+    #[test]
+    fn state_changes_do_not_move_slots() {
+        let mut map = SlotMap::default();
+        let a = vec![
+            agent("p-idle", AgentState::Idle),
+            agent("p-working", AgentState::Working),
+        ];
+        let _ = map.update(&a);
+        // Same agents, states flipped, list order kept: nobody moves.
+        let b = vec![
+            agent("p-idle", AgentState::Working),
+            agent("p-working", AgentState::Blocked),
+        ];
+        let slots = map.update(&b);
+        assert_eq!(slots[0].unwrap().pane_id, "p-idle");
+        assert_eq!(slots[0].unwrap().state, AgentState::Working);
+        assert_eq!(slots[1].unwrap().pane_id, "p-working");
+        assert_eq!(slots[1].unwrap().state, AgentState::Blocked);
+    }
+
+    #[test]
+    fn list_reorder_does_not_move_slots() {
+        let mut map = SlotMap::default();
+        let a = vec![
+            agent("w1:p1", AgentState::Working),
+            agent("w1:p2", AgentState::Idle),
+            agent("w1:p3", AgentState::Idle),
+        ];
+        let _ = map.update(&a);
+        let b = vec![
+            agent("w1:p3", AgentState::Idle),
+            agent("w1:p1", AgentState::Working),
+            agent("w1:p2", AgentState::Idle),
+        ];
+        let slots = map.update(&b);
+        assert_eq!(slots[0].unwrap().pane_id, "w1:p1");
+        assert_eq!(slots[1].unwrap().pane_id, "w1:p2");
+        assert_eq!(slots[2].unwrap().pane_id, "w1:p3");
+    }
+
+    #[test]
+    fn removed_agent_frees_its_slot() {
+        let mut map = SlotMap::default();
+        let a = vec![
+            agent("w1:p1", AgentState::Working),
+            agent("w1:p2", AgentState::Idle),
+            agent("w1:p3", AgentState::Idle),
+        ];
+        let _ = map.update(&a);
+        let b = vec![
+            agent("w1:p1", AgentState::Working),
+            agent("w1:p3", AgentState::Idle),
+        ];
+        let slots = map.update(&b);
+        // The survivor keeps its original slot; the gap does not close up.
+        assert_eq!(slots[0].unwrap().pane_id, "w1:p1");
+        assert!(slots[1].is_none());
+        assert_eq!(slots[2].unwrap().pane_id, "w1:p3");
     }
 
     #[test]
     fn overflow_beyond_15_is_unlit() {
+        let mut map = SlotMap::default();
         let agents: Vec<Agent> = (0..20)
             .map(|i| agent(&format!("p{i}"), AgentState::Working))
             .collect();
-        let slots = assign_slots(&agents);
+        let slots = map.update(&agents);
         assert_eq!(slots.len(), 15);
         assert!(slots.iter().all(|s| s.is_some()));
+        assert_eq!(slots[14].unwrap().pane_id, "p14");
         assert_eq!(rgb_frame(&slots).len(), 45);
     }
 
     #[test]
+    fn freed_slot_goes_to_overflow_agent_in_list_order() {
+        let mut map = SlotMap::default();
+        let all: Vec<Agent> = (0..20)
+            .map(|i| agent(&format!("p{i}"), AgentState::Working))
+            .collect();
+        let _ = map.update(&all);
+        // p0..p2 disappear: three slots free. p15..p17 (the overflow agents,
+        // in list order) take them; p18/p19 stay unlit.
+        let second: Vec<Agent> = all
+            .into_iter()
+            .filter(|a| a.pane_id != "p0" && a.pane_id != "p1" && a.pane_id != "p2")
+            .collect();
+        let slots = map.update(&second);
+        assert_eq!(slots[0].unwrap().pane_id, "p15");
+        assert_eq!(slots[1].unwrap().pane_id, "p16");
+        assert_eq!(slots[2].unwrap().pane_id, "p17");
+        assert_eq!(slots[3].unwrap().pane_id, "p3");
+        assert_eq!(slots[14].unwrap().pane_id, "p14");
+    }
+
+    #[test]
+    fn update_is_idempotent_for_unchanged_list() {
+        let mut map = SlotMap::default();
+        let agents = vec![
+            agent("w1:p1", AgentState::Working),
+            agent("w1:p2", AgentState::Idle),
+        ];
+        let s1 = map.update(&agents);
+        let s2 = map.update(&agents);
+        let pick = |s: &Vec<Option<&Agent>>| {
+            s.iter()
+                .map(|x| x.map(|a| a.pane_id.clone()))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(pick(&s1), pick(&s2));
+    }
+
+    #[test]
     fn rgb_frame_layout() {
+        let mut map = SlotMap::default();
         let agents = vec![
             agent("a", AgentState::Blocked),
             agent("b", AgentState::Working),
         ];
-        let slots = assign_slots(&agents);
+        let slots = map.update(&agents);
         let f = rgb_frame(&slots);
         assert_eq!([f[0], f[1], f[2]], [255, 0, 0]); // slot 0 blocked
         assert_eq!([f[3], f[4], f[5]], [0, 255, 0]); // slot 1 working
@@ -227,10 +357,11 @@ mod tests {
 
     #[test]
     fn oled_text_fits_budget() {
+        let mut map = SlotMap::default();
         let agents: Vec<Agent> = (0..10)
             .map(|i| agent(&format!("agent{i}"), AgentState::Working))
             .collect();
-        let slots = assign_slots(&agents);
+        let slots = map.update(&agents);
         let t = oled_text(&slots);
         assert!(t.len() <= 56, "oled text is {} bytes", t.len());
         assert!(!t.is_empty());

@@ -2,7 +2,7 @@
 //! herdr Unix socket that implements the REAL protocol — one request per
 //! connection (the server answers a single request, then drops the connection).
 //! The daemon polls `agent.list`; the test flips an agent's state in the served
-//! list and verifies the daemon re-polls and emits a new (re-sorted) RGB frame.
+//! list and verifies the daemon re-polls and emits a new RGB frame in the same slots.
 
 use parking_lot::Mutex;
 use std::io::{BufRead, BufReader, Read, Write};
@@ -155,7 +155,8 @@ fn full_loop_mock_socket() {
         lines.lock().join("\n")
     );
 
-    // Flip C idle -> blocked; the next ~2s poll picks it up and re-sorts.
+    // Flip C idle -> blocked; the next ~2s poll picks it up. C keeps its
+    // slot (key 3) and only its color changes.
     *state.lock() = V2.to_string();
     assert!(
         wait_for(
@@ -197,13 +198,18 @@ fn full_loop_mock_socket() {
     );
     assert_eq!([f0[6], f0[7], f0[8]], [48, 48, 48], "slot2 dim (C idle)");
 
-    // Frame 1 (C -> blocked): re-sorted to A(blocked,p1), C(blocked,p3), B(working,p2).
+    // Frame 1 (C -> blocked): sticky mapping — A stays on key 1, B on key 2,
+    // C on key 3; only C's color changes (dim -> red).
     let f1 = &frames[1];
     assert_eq!([f1[0], f1[1], f1[2]], [255, 0, 0], "slot0 red (A)");
     assert_eq!(
         [f1[3], f1[4], f1[5]],
-        [255, 0, 0],
-        "slot1 red (C now blocked)"
+        [0, 255, 0],
+        "slot1 green (B, unchanged)"
     );
-    assert_eq!([f1[6], f1[7], f1[8]], [0, 255, 0], "slot2 green (B)");
+    assert_eq!(
+        [f1[6], f1[7], f1[8]],
+        [255, 0, 0],
+        "slot2 red (C now blocked)"
+    );
 }

@@ -17,7 +17,7 @@ mod model;
 use anyhow::Result;
 use herdr::HerdrClient;
 use hid::DuckyPad;
-use model::{Agent, SLOTS};
+use model::{Agent, SlotMap, SLOTS};
 use std::time::{Duration, Instant};
 
 /// How often to re-poll herdr for the agent list.
@@ -51,6 +51,8 @@ struct Daemon {
     pad: DuckyPad,
     client: HerdrClient,
     agents: Vec<Agent>,
+    /// Sticky pane_id -> key assignment; survives re-lists and state changes.
+    slot_map: SlotMap,
     last_rgb: [u8; 45],
     last_oled: String,
     last_summary: String,
@@ -66,6 +68,7 @@ impl Daemon {
             pad,
             client,
             agents: Vec::new(),
+            slot_map: SlotMap::default(),
             last_rgb: [0; 45],
             last_oled: String::new(),
             last_summary: String::new(),
@@ -86,8 +89,7 @@ impl Daemon {
                 return;
             }
         }
-
-        let slots = model::assign_slots(&self.agents);
+        let slots = self.slot_map.update(&self.agents);
         let rgb = model::rgb_frame(&slots);
         if force || rgb != self.last_rgb {
             if let Err(e) = self.pad.set_rgb_frame(&rgb) {
@@ -165,7 +167,7 @@ impl Daemon {
         if slot < 1 || slot > SLOTS as u8 {
             return;
         }
-        let Some(target) = model::assign_slots(&self.agents)
+        let Some(target) = self.slot_map.update(&self.agents)
             .get((slot - 1) as usize)
             .and_then(|s| *s)
             .map(|a| a.pane_id.clone())

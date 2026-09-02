@@ -39,7 +39,9 @@ pad 對話。
   長期的 push 訂閱），維護一份 agent 的快照；有任何變化就把 RGB frame +
   OLED 文字推到 pad。每個 tick 都會輪詢 pad 的 key-state 並做 edge 偵測
   （按住不放會 latch，所以每次按壓只觸發一次）；偵測到新按壓時，對那個
-  agent 的 pane 發一個一次性的 `agent.focus`。
+  agent 的 pane 發一個一次性的 `agent.focus`。按鍵對應是 sticky 的：agent
+  只要在 list 裡就一直佔同一顆按鍵（新 agent 依 list 順序拿下一個空位），
+  所以 state 變化、agent 進出都不會跳位。
 
 ## 需求
 

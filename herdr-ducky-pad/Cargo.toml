@@ -1,8 +1,8 @@
 [package]
 name = "ducky-pad-bridge"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
-description = "herdr plugin that drives a duckyPad: one NeoPixel key per herdr agent, colored by state; press a key to focus that agent."
+description = "herdr plugin that drives a duckyPad: one NeoPixel key per herdr agent, colored by state; press a key to focus that agent. Key assignment is stable per agent."
 
 [dependencies]
 anyhow = "1"

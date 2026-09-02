@@ -40,7 +40,10 @@ With **more than 15 agents**, slots fill by priority
   picture of the agents, and on any change pushes the RGB frame + OLED text
   to the pad. On every tick it polls the pad's key state and edge-detects
   presses (a held key is latched, so it fires once per press); on a fresh
-  press it issues a one-shot `agent.focus` for that agent's pane.
+  press it issues a one-shot `agent.focus` for that agent's pane. Key
+  assignment is sticky: an agent keeps its key for as long as it stays in
+  the list (new agents take the next free key in list order), so keys don't
+  jump around when states change or agents come and go.
 
 ## Requirements
 
