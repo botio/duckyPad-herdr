@@ -14,6 +14,10 @@ No hardware changes. Everything on the pad side is firmware (the pad is a
 custom-HID device, VID `0x483` / PID `0xd11c`); this plugin is a small Rust
 daemon that talks to herdr's socket and to the pad.
 
+The duckyPad set up as a herdr light board:
+
+![duckyPad as a herdr light board](img/duckypad-herdr.webp)
+
 ## States & colors (locked)
 
 | state     | color          |
@@ -24,8 +28,8 @@ daemon that talks to herdr's socket and to the pad.
 | `unknown` | amber          |
 | `idle`    | dim gray       |
 
-With **more than 15 agents**, slots fill by priority
-`blocked > done > working > unknown > idle`; overflow agents are unlit.
+With **more than 15 agents**, the first 15 in herdr's list order light
+keys; overflow agents stay unlit until a slot frees.
 
 ## How it works
 
@@ -60,27 +64,36 @@ cd herdr-ducky-pad
 cargo build --release
 ```
 
-## Install as a herdr plugin
+## Install (build + user service)
+
+One script installs everything on both **Linux and macOS** — it builds
+the daemon and runs it as a **user service** (systemd user unit on Linux,
+launchd LaunchAgent on macOS; herdr's `[[startup]]` hooks are one-shot and
+must exit, so a service is the right supervisor for a long-lived daemon):
 
 ```bash
-herdr plugin link ./herdr-ducky-pad
-herdr plugin list      # check for warnings
+./install.sh
 ```
 
-`herdr plugin link` runs the `[[build]]` hook (compiles the daemon). The
-daemon itself is **not** started by the plugin — herdr's `[[startup]]`
-hooks are one-shot (they must exit), while this daemon has to stay alive —
-so it runs as a **systemd user service**
-(`~/.config/systemd/user/ducky-pad-bridge.service`):
+It is idempotent — re-run it after pulling updates. It:
 
-```bash
-systemctl --user enable --now ducky-pad-bridge
-systemctl --user status ducky-pad-bridge
-journalctl --user -u ducky-pad-bridge -f   # live logs
-```
+1. builds the daemon (`cargo build --release`);
+2. registers the plugin with herdr (`herdr plugin link`, when herdr is on
+   PATH);
+3. installs and (re)starts the service:
+   - **Linux**: `~/.config/systemd/user/ducky-pad-bridge.service`
+   - **macOS**: `~/Library/LaunchAgents/com.botio.ducky-pad-bridge.plist`
 
-Prefer no service? Run the daemon directly in a terminal instead:
-`./target/release/ducky-pad-bridge`.
+Status & logs:
+
+- **Linux**: `systemctl --user status ducky-pad-bridge`,
+  `journalctl --user -u ducky-pad-bridge -f`
+- **macOS**: `launchctl list | grep ducky-pad-bridge`,
+  `tail -f /tmp/ducky-pad-bridge.log`
+
+Manual install (no script): `cargo build --release`, then create and
+enable the service file yourself — `install.sh` shows the exact
+unit/plist contents.
 
 ## Test without the pad (dry run)
 

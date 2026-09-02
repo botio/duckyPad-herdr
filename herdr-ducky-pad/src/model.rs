@@ -23,18 +23,6 @@ impl AgentState {
         }
     }
 
-    /// Slot-fill priority rank: lower fills slots first.
-    /// `blocked > done > working > unknown > idle`.
-    pub fn rank(self) -> u8 {
-        match self {
-            AgentState::Blocked => 0,
-            AgentState::Done => 1,
-            AgentState::Working => 2,
-            AgentState::Unknown => 3,
-            AgentState::Idle => 4,
-        }
-    }
-
     /// RGB for this state (locked palette).
     pub fn color(self) -> [u8; 3] {
         match self {

@@ -14,6 +14,10 @@
 PID `0xd11c`）；這個外掛是一個小的 Rust daemon，負責跟 herdr 的 socket 和
 pad 對話。
 
+duckyPad 裝成 herdr 光板後的樣子：
+
+![duckyPad 作為 herdr 光板](img/duckypad-herdr.webp)
+
 ## 狀態與顏色（已固定）
 
 | state     | 顏色     |
@@ -24,8 +28,8 @@ pad 對話。
 | `unknown` | 琥珀     |
 | `idle`    | 暗灰     |
 
-**超過 15 個 agent** 時，槽位依優先級填充：`blocked > done > working > unknown > idle`；
-多出來的 agent 不亮。
+**超過 15 個 agent** 時，依 herdr 的 list 順序取前 15 個點燈；
+多出來的 agent 先不亮，等有槽位空出來才進場。
 
 ## 運作方式
 
@@ -58,26 +62,34 @@ cd herdr-ducky-pad
 cargo build --release
 ```
 
-## 作為 herdr 外掛安裝
+## 安裝（建置 + 使用者服務）
+
+一個腳本在 **Linux 跟 macOS** 上都能裝——它建置 daemon，並把它跑成
+**使用者服務**（Linux 用 systemd user service、macOS 用 launchd
+LaunchAgent；herdr 的 `[[startup]]` hook 是「一次性、要結束」的，不適合
+監督一個長駐 daemon）：
 
 ```bash
-herdr plugin link ./herdr-ducky-pad
-herdr plugin list      # 檢查有沒有 warning
+./install.sh
 ```
 
-`herdr plugin link` 會跑 `[[build]]` hook（編譯 daemon）。daemon 本身**不**
-由外掛啟動——herdr 的 `[[startup]]` hook 是 one-shot（要 exit），而這個
-daemon 要長駐——所以 daemon 是跑成 **systemd user service**
-（`~/.config/systemd/user/ducky-pad-bridge.service`）：
+腳本可以重複執行（idempotent）——`git pull` 之後再跑一次即可。它會：
 
-```bash
-systemctl --user enable --now ducky-pad-bridge
-systemctl --user status ducky-pad-bridge
-journalctl --user -u ducky-pad-bridge -f   # 看即時 log
-```
+1. 建置 daemon（`cargo build --release`）；
+2. 把 plugin 註冊進 herdr（`herdr plugin link`，前提是 herdr 在 PATH 上）；
+3. 安裝並（重）啟服務：
+   - **Linux**：`~/.config/systemd/user/ducky-pad-bridge.service`
+   - **macOS**：`~/Library/LaunchAgents/com.botio.ducky-pad-bridge.plist`
 
-不想要 service 的話，也可以在 terminal 裡直接跑 daemon：
-`./target/release/ducky-pad-bridge`。
+狀態與 log：
+
+- **Linux**：`systemctl --user status ducky-pad-bridge`、
+  `journalctl --user -u ducky-pad-bridge -f`
+- **macOS**：`launchctl list | grep ducky-pad-bridge`、
+  `tail -f /tmp/ducky-pad-bridge.log`
+
+不用腳本手動裝：`cargo build --release` 之後，自己建立並啟用那個
+服務檔——`install.sh` 裡面就是 unit/plist 的完整內容。
 
 ## 不用 pad 測試（dry run）
 
