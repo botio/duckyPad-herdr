@@ -10,6 +10,7 @@
 //! polled on a short interval and a key press issues a one-shot `agent.focus`.
 //! There is no persistent subscription the daemon holds open.
 
+mod config;
 mod herdr;
 mod hid;
 mod model;
@@ -46,13 +47,14 @@ fn socket_path() -> std::path::PathBuf {
     }
     base.join("herdr.sock")
 }
-
 struct Daemon {
     pad: DuckyPad,
     client: HerdrClient,
     agents: Vec<Agent>,
     /// Sticky pane_id -> key assignment; survives re-lists and state changes.
     slot_map: SlotMap,
+    /// User config (color palette + pinned slots); reloaded on every relist.
+    config: config::HerdrConfig,
     last_rgb: [u8; 45],
     last_oled: String,
     last_summary: String,
@@ -64,11 +66,13 @@ struct Daemon {
 
 impl Daemon {
     fn new(pad: DuckyPad, client: HerdrClient) -> Self {
+        let config = config::HerdrConfig::load();
         Self {
             pad,
             client,
             agents: Vec::new(),
             slot_map: SlotMap::default(),
+            config,
             last_rgb: [0; 45],
             last_oled: String::new(),
             last_summary: String::new(),
@@ -89,8 +93,8 @@ impl Daemon {
                 return;
             }
         }
-        let slots = self.slot_map.update(&self.agents);
-        let rgb = model::rgb_frame(&slots);
+        let slots = self.slot_map.update(&self.agents, &self.config.pinned_slots);
+        let rgb = model::rgb_frame(&slots, &self.config.colors);
         if force || rgb != self.last_rgb {
             if let Err(e) = self.pad.set_rgb_frame(&rgb) {
                 log::warn!("set_rgb_frame: {e:#}");
@@ -127,6 +131,9 @@ impl Daemon {
 
     /// One-shot `agent.list`; refresh the tracked agents and push to the pad.
     fn poll_agents(&mut self) {
+        // Reload user config each relist so palette/pin edits apply without
+        // a daemon restart.
+        self.config = config::HerdrConfig::load();
         match self.client.agent_list() {
             Ok(v) => {
                 self.agents = v
@@ -167,7 +174,9 @@ impl Daemon {
         if slot < 1 || slot > SLOTS as u8 {
             return;
         }
-        let Some(target) = self.slot_map.update(&self.agents)
+        let Some(target) = self
+            .slot_map
+            .update(&self.agents, &self.config.pinned_slots)
             .get((slot - 1) as usize)
             .and_then(|s| *s)
             .map(|a| a.pane_id.clone())

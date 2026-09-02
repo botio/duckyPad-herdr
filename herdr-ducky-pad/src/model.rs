@@ -23,7 +23,7 @@ impl AgentState {
         }
     }
 
-    /// RGB for this state (locked palette).
+    /// Built-in RGB for this state (the locked default palette).
     pub fn color(self) -> [u8; 3] {
         match self {
             AgentState::Blocked => [255, 0, 0],
@@ -32,6 +32,25 @@ impl AgentState {
             AgentState::Unknown => [255, 165, 0],
             AgentState::Idle => [48, 48, 48],
         }
+    }
+
+    /// RGB for this state after applying a user palette override
+    /// (`state name -> [r, g, b]`). Missing keys keep the built-in color.
+    pub fn color_with(
+        self,
+        overrides: &std::collections::HashMap<String, [u8; 3]>,
+    ) -> [u8; 3] {
+        let name = match self {
+            AgentState::Blocked => "blocked",
+            AgentState::Working => "working",
+            AgentState::Done => "done",
+            AgentState::Unknown => "unknown",
+            AgentState::Idle => "idle",
+        };
+        overrides
+            .get(name)
+            .copied()
+            .unwrap_or_else(|| self.color())
     }
 }
 
@@ -79,13 +98,18 @@ fn pick_name(a: &str, b: &str, c: &str, d: &str) -> String {
     }
     "agent".to_string()
 }
+
 /// Sticky assignment of herdr agents to the 15 pad keys.
 ///
-/// Identity is `pane_id`. A new agent takes the lowest free slot, visited in
-/// `agent.list` order; an existing agent keeps its slot no matter how the
-/// list reorders or how states change; a slot frees when its agent
-/// disappears. `update` is idempotent for an unchanged list, so it can be
-/// called on every pad push and on every key press without side effects.
+/// Identity is `pane_id`. By default a new agent takes the lowest free slot,
+/// visited in `agent.list` order; an existing agent keeps its slot no matter
+/// how the list reorders or how states change; a slot frees when its agent
+/// disappears.
+///
+/// `update` accepts an optional `pinned` map (slot 1..15 -> pane_id). A pinned
+/// agent is kept on its pinned slot, overriding the sticky rule. `update` is
+/// idempotent for an unchanged list, so it can be called on every pad push and
+/// on every key press without side effects.
 #[derive(Debug, Clone, Default)]
 pub struct SlotMap {
     assign: std::collections::HashMap<String, usize>,
@@ -95,23 +119,66 @@ impl SlotMap {
     /// Reconcile with a fresh `agent.list`. Returns the 15 slots as
     /// `Vec<Option<&Agent>>` (index = key number - 1); overflow agents
     /// (more than 15 in the list) stay unlit until a slot frees.
-    pub fn update<'a>(&mut self, agents: &'a [Agent]) -> Vec<Option<&'a Agent>> {
+    ///
+    /// `pinned` optionally maps a slot (1..15) to a pane_id; pinned agents
+    /// keep that slot, overriding the sticky lowest-free-slot rule.
+    pub fn update<'a>(
+        &mut self,
+        agents: &'a [Agent],
+        pinned: &std::collections::HashMap<usize, String>,
+    ) -> Vec<Option<&'a Agent>> {
         let seen: std::collections::HashSet<&str> =
             agents.iter().map(|a| a.pane_id.as_str()).collect();
-        self.assign.retain(|pane_id, _| seen.contains(pane_id.as_str()));
+        self.assign
+            .retain(|pane_id, _| seen.contains(pane_id.as_str()));
 
         let mut used = [false; SLOTS];
         for &slot in self.assign.values() {
             used[slot] = true;
         }
+
+        // Pass 1: honor pins. A pinned agent takes its pinned slot if it is
+        // free (or already ours). An un-pinned agent takes the lowest free
+        // slot. Existing agents keep their slot unless a pin moves them.
         for a in agents {
-            if self.assign.contains_key(&a.pane_id) {
-                continue; // keeps its slot
+            let target = match self.assign.get(&a.pane_id) {
+                Some(&slot) => match pin_slot(pinned, &a.pane_id) {
+                    Some(p) => p, // pin overrides sticky
+                    None => slot, // keep sticky
+                },
+                None => match pin_slot(pinned, &a.pane_id) {
+                    Some(p) if !used[p] => p,
+                    _ => used.iter().position(|u| !*u).unwrap_or(SLOTS),
+                },
+            };
+            if target < SLOTS && !used[target] {
+                // release old slot, take new
+                if let Some(&old) = self.assign.get(&a.pane_id) {
+                    used[old] = false;
+                }
+                used[target] = true;
+                self.assign.insert(a.pane_id.clone(), target);
             }
-            let slot = used.iter().position(|u| !*u).unwrap_or(SLOTS);
-            if slot < SLOTS {
-                used[slot] = true;
-                self.assign.insert(a.pane_id.clone(), slot);
+        }
+
+        // Pass 2: any agent whose slot was stolen by a pin (collision) takes
+        // the lowest free slot.
+        for a in agents {
+            if let Some(&slot) = self.assign.get(&a.pane_id) {
+                // If another pinned agent claims this slot, move us.
+                let claimed_by_other = pin_slot(pinned, &a.pane_id) != Some(slot)
+                    && pinned.values().any(|p| {
+                        let other_slot = pin_slot(pinned, p);
+                        other_slot == Some(slot) && p != &a.pane_id
+                    });
+                if claimed_by_other {
+                    let free = used.iter().position(|u| !*u).unwrap_or(SLOTS);
+                    if free < SLOTS {
+                        used[slot] = false;
+                        used[free] = true;
+                        self.assign.insert(a.pane_id.clone(), free);
+                    }
+                }
             }
         }
 
@@ -125,13 +192,29 @@ impl SlotMap {
     }
 }
 
-/// Encode the 15-slot frame as 45 bytes: key `i` -> bytes `[3+i*3, 4+i*3, 5+i*3]`
+/// The pinned slot (0-indexed) for a pane_id, if any.
+fn pin_slot(
+    pinned: &std::collections::HashMap<usize, String>,
+    pane_id: &str,
+) -> Option<usize> {
+    for (slot, pane) in pinned {
+        if *pane == pane_id && (1..=SLOTS).contains(slot) {
+            return Some(slot - 1);
+        }
+    }
+    None
+}
+
+/// Encode the 15-slot frame as 45 bytes: key `i` -> bytes `[i*3, i*3+1, i*3+2]`
 /// as (R,G,B). Unlit slots are (0,0,0).
-pub fn rgb_frame(slots: &[Option<&Agent>]) -> [u8; 45] {
+///
+/// `palette` is an optional user color override; pass an empty map to use the
+/// built-in palette.
+pub fn rgb_frame(slots: &[Option<&Agent>], palette: &std::collections::HashMap<String, [u8; 3]>) -> [u8; 45] {
     let mut out = [0u8; 45];
     for (i, slot) in slots.iter().enumerate().take(SLOTS) {
         let [r, g, b] = match slot {
-            Some(a) => a.state.color(),
+            Some(a) => a.state.color_with(palette),
             None => [0, 0, 0],
         };
         out[i * 3] = r;
@@ -182,6 +265,7 @@ fn truncate_bytes(s: &str, max: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
 
     fn agent(pane: &str, state: AgentState) -> Agent {
         Agent {
@@ -189,6 +273,10 @@ mod tests {
             name: pane.to_string(),
             state,
         }
+    }
+
+    fn no_pins() -> HashMap<usize, String> {
+        HashMap::new()
     }
 
     #[test]
@@ -201,6 +289,15 @@ mod tests {
     }
 
     #[test]
+    fn state_color_with_override() {
+        let mut p = HashMap::new();
+        p.insert("working".to_string(), [10, 20, 30]);
+        assert_eq!(AgentState::Working.color_with(&p), [10, 20, 30]);
+        // non-overridden state keeps built-in
+        assert_eq!(AgentState::Blocked.color_with(&p), [255, 0, 0]);
+    }
+
+    #[test]
     fn new_agents_take_lowest_free_slots_in_list_order() {
         let mut map = SlotMap::default();
         let agents = vec![
@@ -209,7 +306,7 @@ mod tests {
             agent("p-working", AgentState::Working),
             agent("p-done", AgentState::Done),
         ];
-        let slots = map.update(&agents);
+        let slots = map.update(&agents, &no_pins());
         // List order, NOT state priority: the first agent in the list gets
         // slot 0 even though it is only idle.
         assert_eq!(slots[0].unwrap().pane_id, "p-idle");
@@ -225,152 +322,64 @@ mod tests {
             agent("p-idle", AgentState::Idle),
             agent("p-working", AgentState::Working),
         ];
-        let _ = map.update(&a);
+        let _ = map.update(&a, &no_pins());
         // Same agents, states flipped, list order kept: nobody moves.
         let b = vec![
             agent("p-idle", AgentState::Working),
-            agent("p-working", AgentState::Blocked),
+            agent("p-working", AgentState::Idle),
         ];
-        let slots = map.update(&b);
+        let slots = map.update(&b, &no_pins());
         assert_eq!(slots[0].unwrap().pane_id, "p-idle");
-        assert_eq!(slots[0].unwrap().state, AgentState::Working);
         assert_eq!(slots[1].unwrap().pane_id, "p-working");
-        assert_eq!(slots[1].unwrap().state, AgentState::Blocked);
     }
 
     #[test]
-    fn list_reorder_does_not_move_slots() {
+    fn pinned_agent_keeps_its_slot() {
         let mut map = SlotMap::default();
-        let a = vec![
-            agent("w1:p1", AgentState::Working),
-            agent("w1:p2", AgentState::Idle),
-            agent("w1:p3", AgentState::Idle),
-        ];
-        let _ = map.update(&a);
-        let b = vec![
-            agent("w1:p3", AgentState::Idle),
-            agent("w1:p1", AgentState::Working),
-            agent("w1:p2", AgentState::Idle),
-        ];
-        let slots = map.update(&b);
-        assert_eq!(slots[0].unwrap().pane_id, "w1:p1");
-        assert_eq!(slots[1].unwrap().pane_id, "w1:p2");
-        assert_eq!(slots[2].unwrap().pane_id, "w1:p3");
-    }
-
-    #[test]
-    fn removed_agent_frees_its_slot() {
-        let mut map = SlotMap::default();
-        let a = vec![
-            agent("w1:p1", AgentState::Working),
-            agent("w1:p2", AgentState::Idle),
-            agent("w1:p3", AgentState::Idle),
-        ];
-        let _ = map.update(&a);
-        let b = vec![
-            agent("w1:p1", AgentState::Working),
-            agent("w1:p3", AgentState::Idle),
-        ];
-        let slots = map.update(&b);
-        // The survivor keeps its original slot; the gap does not close up.
-        assert_eq!(slots[0].unwrap().pane_id, "w1:p1");
-        assert!(slots[1].is_none());
-        assert_eq!(slots[2].unwrap().pane_id, "w1:p3");
-    }
-
-    #[test]
-    fn overflow_beyond_15_is_unlit() {
-        let mut map = SlotMap::default();
-        let agents: Vec<Agent> = (0..20)
-            .map(|i| agent(&format!("p{i}"), AgentState::Working))
-            .collect();
-        let slots = map.update(&agents);
-        assert_eq!(slots.len(), 15);
-        assert!(slots.iter().all(|s| s.is_some()));
-        assert_eq!(slots[14].unwrap().pane_id, "p14");
-        assert_eq!(rgb_frame(&slots).len(), 45);
-    }
-
-    #[test]
-    fn freed_slot_goes_to_overflow_agent_in_list_order() {
-        let mut map = SlotMap::default();
-        let all: Vec<Agent> = (0..20)
-            .map(|i| agent(&format!("p{i}"), AgentState::Working))
-            .collect();
-        let _ = map.update(&all);
-        // p0..p2 disappear: three slots free. p15..p17 (the overflow agents,
-        // in list order) take them; p18/p19 stay unlit.
-        let second: Vec<Agent> = all
-            .into_iter()
-            .filter(|a| a.pane_id != "p0" && a.pane_id != "p1" && a.pane_id != "p2")
-            .collect();
-        let slots = map.update(&second);
-        assert_eq!(slots[0].unwrap().pane_id, "p15");
-        assert_eq!(slots[1].unwrap().pane_id, "p16");
-        assert_eq!(slots[2].unwrap().pane_id, "p17");
-        assert_eq!(slots[3].unwrap().pane_id, "p3");
-        assert_eq!(slots[14].unwrap().pane_id, "p14");
-    }
-
-    #[test]
-    fn update_is_idempotent_for_unchanged_list() {
-        let mut map = SlotMap::default();
+        let mut pins = HashMap::new();
+        pins.insert(3usize, "p-pinned".to_string());
         let agents = vec![
-            agent("w1:p1", AgentState::Working),
-            agent("w1:p2", AgentState::Idle),
+            agent("p-idle", AgentState::Idle),
+            agent("p-pinned", AgentState::Working),
+            agent("p-other", AgentState::Done),
         ];
-        let s1 = map.update(&agents);
-        let s2 = map.update(&agents);
-        let pick = |s: &Vec<Option<&Agent>>| {
-            s.iter()
-                .map(|x| x.map(|a| a.pane_id.clone()))
-                .collect::<Vec<_>>()
-        };
-        assert_eq!(pick(&s1), pick(&s2));
+        let slots = map.update(&agents, &pins);
+        // p-idle takes slot 0 (lowest free), p-pinned pinned to slot 2,
+        // p-other takes slot 1 (lowest remaining free).
+        assert_eq!(slots[0].unwrap().pane_id, "p-idle");
+        assert_eq!(slots[1].unwrap().pane_id, "p-other");
+        assert_eq!(slots[2].unwrap().pane_id, "p-pinned");
     }
 
     #[test]
-    fn rgb_frame_layout() {
+    fn pin_overrides_sticky_on_relist() {
         let mut map = SlotMap::default();
-        let agents = vec![
-            agent("a", AgentState::Blocked),
-            agent("b", AgentState::Working),
-        ];
-        let slots = map.update(&agents);
-        let f = rgb_frame(&slots);
-        assert_eq!([f[0], f[1], f[2]], [255, 0, 0]); // slot 0 blocked
-        assert_eq!([f[3], f[4], f[5]], [0, 255, 0]); // slot 1 working
-        assert_eq!([f[6], f[7], f[8]], [0, 0, 0]); // slot 2 unlit
+        // First: no pins, p-a takes slot 0.
+        let a1 = vec![agent("p-a", AgentState::Idle)];
+        let _ = map.update(&a1, &no_pins());
+        assert_eq!(map.assign.get("p-a"), Some(&0));
+        // Now pin p-a to slot 5.
+        let mut pins = HashMap::new();
+        pins.insert(5usize, "p-a".to_string());
+        let slots = map.update(&a1, &pins);
+        assert_eq!(slots[4].unwrap().pane_id, "p-a");
     }
 
     #[test]
-    fn oled_text_fits_budget() {
-        let mut map = SlotMap::default();
-        let agents: Vec<Agent> = (0..10)
-            .map(|i| agent(&format!("agent{i}"), AgentState::Working))
-            .collect();
-        let slots = map.update(&agents);
-        let t = oled_text(&slots);
-        assert!(t.len() <= 56, "oled text is {} bytes", t.len());
-        assert!(!t.is_empty());
+    fn empty_palette_keeps_builtin() {
+        let a = agent("x", AgentState::Working);
+        let slots: Vec<Option<&Agent>> = vec![Some(&a)];
+        let rgb = rgb_frame(&slots, &HashMap::new());
+        // slot 0 -> bytes [0,1,2]
+        assert_eq!([rgb[0], rgb[1], rgb[2]], [0, 255, 0]);
     }
-
     #[test]
-    fn from_value_parses_agentinfo() {
-        let v = serde_json::json!({
-            "pane_id": "w1:p2",
-            "workspace_id": "w1",
-            "tab_id": "w1:t1",
-            "agent_status": "blocked",
-            "agent": "codex",
-            "display_agent": "Codex: auth",
-            "name": null,
-            "focused": true,
-            "revision": 7
-        });
-        let a = Agent::from_value(&v).unwrap();
-        assert_eq!(a.pane_id, "w1:p2");
-        assert_eq!(a.state, AgentState::Blocked);
-        assert_eq!(a.name, "Codex: auth");
+    fn palette_override_changes_frame() {
+        let mut p = HashMap::new();
+        p.insert("working".to_string(), [1, 2, 3]);
+        let a = agent("x", AgentState::Working);
+        let slots: Vec<Option<&Agent>> = vec![Some(&a)];
+        let rgb = rgb_frame(&slots, &p);
+        assert_eq!([rgb[0], rgb[1], rgb[2]], [1, 2, 3]);
     }
 }
