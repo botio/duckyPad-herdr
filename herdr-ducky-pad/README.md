@@ -64,17 +64,23 @@ cargo build --release
 
 ```bash
 herdr plugin link ./herdr-ducky-pad
-herdr plugin list      # check for warnings; the daemon starts after the API is ready
+herdr plugin list      # check for warnings
 ```
 
-`herdr plugin link` runs the `[[build]]` hook (builds the daemon) and then
-launches the `[[startup]]` hook (`./target/release/ducky-pad-bridge`) once,
-after herdr's API is ready. If the `[[startup]]` section is rejected by your
-herdr version (see `plugin list` warnings), run the daemon directly instead:
+`herdr plugin link` runs the `[[build]]` hook (compiles the daemon). The
+daemon itself is **not** started by the plugin — herdr's `[[startup]]`
+hooks are one-shot (they must exit), while this daemon has to stay alive —
+so it runs as a **systemd user service**
+(`~/.config/systemd/user/ducky-pad-bridge.service`):
 
 ```bash
-./target/release/ducky-pad-bridge
+systemctl --user enable --now ducky-pad-bridge
+systemctl --user status ducky-pad-bridge
+journalctl --user -u ducky-pad-bridge -f   # live logs
 ```
+
+Prefer no service? Run the daemon directly in a terminal instead:
+`./target/release/ducky-pad-bridge`.
 
 ## Test without the pad (dry run)
 
@@ -89,49 +95,46 @@ to dry run automatically.
 
 ## Building & flashing the firmware
 
-The pad side is the stock duckyPad EVO firmware plus the three herdr
-custom-HID commands. Build it with **Keil µVision** (ST ships a free MDK
-license for the STM32F072 "F0" parts):
+The pad side is the stock duckyPad EVO firmware plus four herdr
+custom-HID commands (`34` RGB frame, `35` OLED text, `36` herdr mode,
+`37` key state).
 
-1. Open `../firmware/evo/MDK-ARM/lul.uvprojx`.
-2. **Rebuild** (F7).
-
-Then **flash via DFU** — hold the pad's `DFU` button while plugging it in, then
-program it with the STM32 **DfuSe** tool or `dfu-util`. The full procedure
-(screenshots + the `dfu-util` one-liner, `0483:df11`) is in the main repo:
-[`firmware_updates_and_version_history.md`](../firmware_updates_and_version_history.md).
-
-> Flash the **Keil** output. A plain `arm-none-eabi-gcc` build also compiles
-> this code, but links a different libc/startup and produces different bytes —
-> that build is **validation-only**, not the flashable image.
-
-### No-Keil shortcut: a pre-built `.dfu`
-
-If you don't have Keil, a pre-built **GCC** image of this firmware (the
-**v3.1.0-herdr** build) ships in the repo and can be flashed directly with
-`dfu-util` (no Keil, no cross-toolchain). The OLED boot screen shows
-`duckyPad V3.1.0` once it's running:
+**Flash it — no Keil, no toolchain needed.** A pre-built image of this
+firmware, the **v3.1.0-herdr** build, ships in the repo. It was produced
+with `arm-none-eabi-gcc`; the same build process has been proven to boot
+and run on a real duckyPad. Hold the pad's `DFU` button while plugging it
+in, then:
 
 ```bash
-# hold the pad's DFU button while plugging in, then (see the main repo doc for
-# the exact flags / recovery):
 dfu-util --device 0483:df11 -a 0 -D ../firmware/duckypad_v3.1.0-herdr.dfu
 ```
 
-> **Experimental.** This is a plain `arm-none-eabi-gcc` build — it compiles and
-> has a valid vector table, but it is the *validation* build (different
-> libc/startup than the blessed Keil image), so it may or may not boot on your
-> pad. DFU flashing is **recoverable**: if it doesn't work, re-flash the stock
-> `../firmware/duckypad_v3.0.4.dfu`. The guaranteed flashable image remains the
-> **Keil** output above.
+The OLED boot screen shows `duckyPad V3.1.0` once it's running. The full
+procedure (screenshots, and recovery by re-flashing the stock
+`../firmware/duckypad_v3.0.4.dfu`) is in the main repo:
+[`firmware_updates_and_version_history.md`](../firmware_updates_and_version_history.md).
+
+In herdr mode the **SD card is not needed** — all display data comes over
+USB HID; the microSD is only used by the stock duckyScript/profile
+features.
+
+**Rebuilding from source — only if you modify the C code.** Either:
+
+- **Keil µVision** (ST ships a free MDK license for the STM32F072 "F0"
+  parts): open `../firmware/evo/MDK-ARM/lul.uvprojx`, Rebuild (F7), and
+  flash the Keil output the same way; or
+- an `arm-none-eabi-gcc` cross build — the pre-built image in the repo was
+  produced that way.
 ## End-to-end test (with the pad)
 
 1. **Build & flash the firmware** (see [Building & flashing the firmware](#building--flashing-the-firmware) above).
 2. **Plug in** the duckyPad (USB) and start **herdr** in a real session with a
    few agents.
-3. **Run the daemon** (or let the plugin start it):
+3. **Start the daemon** — see
+   [Install as a herdr plugin](#install-as-a-herdr-plugin) above; the daemon
+   runs as a systemd user service:
    ```bash
-   ./target/release/ducky-pad-bridge
+   systemctl --user enable --now ducky-pad-bridge
    ```
 4. **Observe:**
    - Each agent lights a key in its state color; when an agent moves to

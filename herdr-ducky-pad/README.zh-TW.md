@@ -62,17 +62,22 @@ cargo build --release
 
 ```bash
 herdr plugin link ./herdr-ducky-pad
-herdr plugin list      # 檢查有沒有 warning；daemon 會在 API ready 後啟動
+herdr plugin list      # 檢查有沒有 warning
 ```
 
-`herdr plugin link` 會先跑 `[[build]]` hook（編譯 daemon），再在 herdr 的 API
-ready 後啟動一次 `[[startup]]` hook（`./target/release/ducky-pad-bridge`）。
-如果你的 herdr 版本不接受 `[[startup]]` section（看 `plugin list` 的 warning），
-就直接跑 daemon：
+`herdr plugin link` 會跑 `[[build]]` hook（編譯 daemon）。daemon 本身**不**
+由外掛啟動——herdr 的 `[[startup]]` hook 是 one-shot（要 exit），而這個
+daemon 要長駐——所以 daemon 是跑成 **systemd user service**
+（`~/.config/systemd/user/ducky-pad-bridge.service`）：
 
 ```bash
-./target/release/ducky-pad-bridge
+systemctl --user enable --now ducky-pad-bridge
+systemctl --user status ducky-pad-bridge
+journalctl --user -u ducky-pad-bridge -f   # 看即時 log
 ```
+
+不想要 service 的話，也可以在 terminal 裡直接跑 daemon：
+`./target/release/ducky-pad-bridge`。
 
 ## 不用 pad 測試（dry run）
 
@@ -86,44 +91,41 @@ daemon 仍會連到 herdr，並把牠*原本會*送出的每個 HID write 記進
 
 ## 建置 & 刷寫韌體
 
-pad 端是原版 duckyPad EVO 韌體，加上那三個 herdr custom-HID 指令。用
-**Keil µVision** 編譯（ST 對 STM32F072「F0」系列提供免費的 MDK license）：
+pad 端是原版 duckyPad EVO 韌體，加上四個 herdr custom-HID 指令
+（`34` RGB、`35` OLED、`36` herdr mode、`37` key state）。
 
-1. 開啟 `../firmware/evo/MDK-ARM/lul.uvprojx`。
-2. **Rebuild**（F7）。
-
-然後**用 DFU 刷寫**——插上 pad 時按住 `DFU` 鍵，再用 STM32 的 **DfuSe**
-工具或 `dfu-util` 寫入。完整步驟（截圖 + `dfu-util` 一行指令、`0483:df11`）
-在主 repo：[`firmware_updates_and_version_history.md`](../firmware_updates_and_version_history.md)。
-
-> 要刷的是 **Keil** 的產物。普通的 `arm-none-eabi-gcc` build 也能編過這段
-> 程式，但連結的 libc/startup 不同、產出的 bytes 也不同——那個 build 只用於
-> **驗證**，不是能刷的 image。
-
-### 免 Keil：現成的 `.dfu`
-
-如果你沒有 Keil，repo 裡附了一份這個韌體（**v3.1.0-herdr** build）的
-**GCC** pre-built image，可以直接用 `dfu-util` 刷（不需要 Keil、也不需要
-cross-toolchain）。刷好跑起來後，OLED boot 畫面會顯示 `duckyPad V3.1.0`：
+**刷寫——不需要 Keil、不需要 toolchain。** repo 裡附了一份這個韌體的
+pre-built image（**v3.1.0-herdr** build）。它是用 `arm-none-eabi-gcc`
+產出的；同一套 build 流程已經證實能在真的 duckyPad 上 boot 並運作。
+插上 pad 時按住 `DFU` 鍵，然後：
 
 ```bash
-# 插上 pad 時按住 DFU 鍵，然後（完整旗標 / 恢復方式見主 repo 文件）：
 dfu-util --device 0483:df11 -a 0 -D ../firmware/duckypad_v3.1.0-herdr.dfu
 ```
 
-> **實驗性。** 這是普通的 `arm-none-eabi-gcc` build——編得過、vector table 也
-> 對，但它是「驗證」用的 build（libc/startup 跟正式 Keil image 不同），所以
-> 可能在你的 pad 上能 boot、也可能不能。DFU 刷寫是**可恢復**的：如果不行，
-> 就再刷回 stock 的 `../firmware/duckypad_v3.0.4.dfu`。保證能刷的 image 仍是
-> 上面的 **Keil** 產物。
+跑起來後，OLED boot 畫面會顯示 `duckyPad V3.1.0`。完整步驟（截圖、
+刷回 stock `../firmware/duckypad_v3.0.4.dfu` 的恢復方式）在主 repo：
+[`firmware_updates_and_version_history.md`](../firmware_updates_and_version_history.md)。
+
+在 herdr mode 下**不需要 SD 卡**——所有顯示資料都走 USB HID；microSD
+只給原版的 duckyScript / profile 功能用。
+
+**要從 source 重建——只有在你改 C code 的時候。** 兩選一：
+
+- **Keil µVision**（ST 對 STM32F072「F0」系列提供免費 MDK license）：
+  開啟 `../firmware/evo/MDK-ARM/lul.uvprojx`、Rebuild（F7），用同樣方式
+  刷 Keil 產物；或
+- `arm-none-eabi-gcc` cross build——repo 裡的 pre-built image 就是這樣
+  產出的。
 ## 端到端測試（有 pad）
 
 1. **建置 & 刷寫韌體**（見上方「建置 & 刷寫韌體」）。
 2. **插上** duckyPad（USB），並在一個真實 session 裡啟動 **herdr**，裡面放
    幾個 agent。
-3. **跑 daemon**（或讓外掛自己啟動它）：
+3. **啟動 daemon**——見上方「作為 herdr 外掛安裝」；daemon 是跑成
+   systemd user service：
    ```bash
-   ./target/release/ducky-pad-bridge
+   systemctl --user enable --now ducky-pad-bridge
    ```
 4. **觀察：**
    - 每個 agent 會按自己的狀態顏色亮一顆按鍵；agent 變 `blocked` 就轉紅、
