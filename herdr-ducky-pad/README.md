@@ -116,7 +116,7 @@ If you don't have Keil, a pre-built **GCC** image of this firmware (the
 ```bash
 # hold the pad's DFU button while plugging in, then (see the main repo doc for
 # the exact flags / recovery):
-dfu-util --dev 0483:df11 -a 0 -D ../firmware/duckypad_v3.1.0-herdr.dfu
+dfu-util --device 0483:df11 -a 0 -D ../firmware/duckypad_v3.1.0-herdr.dfu
 ```
 
 > **Experimental.** This is a plain `arm-none-eabi-gcc` build — it compiles and

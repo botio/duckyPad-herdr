@@ -109,7 +109,7 @@ cross-toolchain）。刷好跑起來後，OLED boot 畫面會顯示 `duckyPad V3
 
 ```bash
 # 插上 pad 時按住 DFU 鍵，然後（完整旗標 / 恢復方式見主 repo 文件）：
-dfu-util --dev 0483:df11 -a 0 -D ../firmware/duckypad_v3.1.0-herdr.dfu
+dfu-util --device 0483:df11 -a 0 -D ../firmware/duckypad_v3.1.0-herdr.dfu
 ```
 
 > **實驗性。** 這是普通的 `arm-none-eabi-gcc` build——編得過、vector table 也
