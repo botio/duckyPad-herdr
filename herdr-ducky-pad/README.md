@@ -58,7 +58,6 @@ With **more than 15 agents**, slots fill by priority
 ```bash
 cd herdr-ducky-pad
 cargo build --release
-cargo test            # unit tests for the model (colors, slot priority, frames)
 ```
 
 ## Install as a herdr plugin

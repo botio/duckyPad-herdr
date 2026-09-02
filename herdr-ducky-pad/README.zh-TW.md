@@ -56,7 +56,6 @@ pad 對話。
 ```bash
 cd herdr-ducky-pad
 cargo build --release
-cargo test            # model 的單元測試（顏色、槽位優先級、frame）
 ```
 
 ## 作為 herdr 外掛安裝
