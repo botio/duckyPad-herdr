@@ -115,8 +115,14 @@ fn full_loop_mock_socket() {
                 let line = String::from_utf8_lossy(&acc).trim().to_string();
                 let (id, method) = match serde_json::from_str::<serde_json::Value>(&line) {
                     Ok(v) => (
-                        v.get("id").and_then(|x| x.as_str()).unwrap_or("null").to_string(),
-                        v.get("method").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+                        v.get("id")
+                            .and_then(|x| x.as_str())
+                            .unwrap_or("null")
+                            .to_string(),
+                        v.get("method")
+                            .and_then(|x| x.as_str())
+                            .unwrap_or("")
+                            .to_string(),
                     ),
                     Err(_) => continue,
                 };
@@ -140,7 +146,11 @@ fn full_loop_mock_socket() {
 
     // First poll is immediate -> seed frame (A red, B green, C dim).
     assert!(
-        wait_for(&lines, |l| l.iter().any(|x| x.contains("cmd=34")), Duration::from_secs(15)),
+        wait_for(
+            &lines,
+            |l| l.iter().any(|x| x.contains("cmd=34")),
+            Duration::from_secs(15)
+        ),
         "daemon never emitted an RGB frame; log:\n{}",
         lines.lock().join("\n")
     );
@@ -180,12 +190,20 @@ fn full_loop_mock_socket() {
     // Frame 0 (seed): slot0=A blocked(red), slot1=B working(green), slot2=C idle(dim).
     let f0 = &frames[0];
     assert_eq!([f0[0], f0[1], f0[2]], [255, 0, 0], "slot0 red (A blocked)");
-    assert_eq!([f0[3], f0[4], f0[5]], [0, 255, 0], "slot1 green (B working)");
+    assert_eq!(
+        [f0[3], f0[4], f0[5]],
+        [0, 255, 0],
+        "slot1 green (B working)"
+    );
     assert_eq!([f0[6], f0[7], f0[8]], [48, 48, 48], "slot2 dim (C idle)");
 
     // Frame 1 (C -> blocked): re-sorted to A(blocked,p1), C(blocked,p3), B(working,p2).
     let f1 = &frames[1];
     assert_eq!([f1[0], f1[1], f1[2]], [255, 0, 0], "slot0 red (A)");
-    assert_eq!([f1[3], f1[4], f1[5]], [255, 0, 0], "slot1 red (C now blocked)");
+    assert_eq!(
+        [f1[3], f1[4], f1[5]],
+        [255, 0, 0],
+        "slot1 red (C now blocked)"
+    );
     assert_eq!([f1[6], f1[7], f1[8]], [0, 255, 0], "slot2 green (B)");
 }

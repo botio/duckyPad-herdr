@@ -86,3 +86,47 @@ impl HerdrClient {
         self.call("agent.focus", &serde_json::json!({ "target": target }))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::{Read, Write};
+    use std::os::unix::net::UnixListener;
+
+    #[test]
+    fn focus_sends_target_pane_id() {
+        let path =
+            std::env::temp_dir().join(format!("ducky-bridge-focus-test-{}", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        let listener = UnixListener::bind(&path).expect("bind mock herdr socket");
+
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("accept focus request");
+            let mut request = Vec::new();
+            loop {
+                let mut byte = [0u8; 1];
+                stream.read_exact(&mut byte).expect("read focus request");
+                request.push(byte[0]);
+                if byte[0] == b'\n' {
+                    break;
+                }
+            }
+
+            let value: serde_json::Value =
+                serde_json::from_slice(&request).expect("parse focus request");
+            assert_eq!(value["method"], "agent.focus");
+            assert_eq!(value["params"]["target"], "w1:p2");
+            stream
+                .write_all(b"{\"id\":\"dp\",\"result\":{\"type\":\"ok\"}}\n")
+                .expect("write focus response");
+        });
+
+        let response = HerdrClient::new(&path)
+            .focus("w1:p2")
+            .expect("focus request succeeds");
+        assert_eq!(response["result"]["type"], "ok");
+
+        server.join().expect("mock herdr server exits");
+        let _ = std::fs::remove_file(path);
+    }
+}

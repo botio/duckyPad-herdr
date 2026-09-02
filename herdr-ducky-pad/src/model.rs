@@ -222,7 +222,7 @@ mod tests {
         let f = rgb_frame(&slots);
         assert_eq!([f[0], f[1], f[2]], [255, 0, 0]); // slot 0 blocked
         assert_eq!([f[3], f[4], f[5]], [0, 255, 0]); // slot 1 working
-        assert_eq!([f[6], f[7], f[8]], [0, 0, 0]);   // slot 2 unlit
+        assert_eq!([f[6], f[7], f[8]], [0, 0, 0]); // slot 2 unlit
     }
 
     #[test]

@@ -23,6 +23,10 @@ use std::time::{Duration, Instant};
 /// How often to re-poll herdr for the agent list.
 const RELIST_PERIOD: Duration = Duration::from_secs(2);
 
+/// Full pad-state heartbeat. Besides keeping herdr mode asserted, this detects
+/// stale HID handles after a hardware reset even when the agent list is stable.
+const PAD_SYNC_PERIOD: Duration = Duration::from_secs(2);
+
 /// Main-loop cadence (also the key-press poll interval).
 const TICK_PERIOD: Duration = Duration::from_millis(10);
 
@@ -51,6 +55,8 @@ struct Daemon {
     last_oled: String,
     last_summary: String,
     last_relist: Instant,
+    last_pad_retry: Instant,
+    last_pad_sync: Instant,
     need_relist: bool,
 }
 
@@ -64,26 +70,38 @@ impl Daemon {
             last_oled: String::new(),
             last_summary: String::new(),
             last_relist: Instant::now(),
+            last_pad_retry: Instant::now(),
+            last_pad_sync: Instant::now(),
             need_relist: true,
         }
     }
 
-    /// Push the computed RGB frame + OLED text to the pad, only when changed.
-    fn push_if_changed(&mut self) {
+    /// Push the computed RGB frame + OLED text. Normal polls send only changed
+    /// values; reconnect/heartbeat calls force a full replay because a reset
+    /// clears the pad's RAM even though the herdr agent list did not change.
+    fn push_pad_state(&mut self, force: bool) {
+        if force {
+            if let Err(e) = self.pad.set_herdr_mode(true) {
+                log::warn!("set_herdr_mode: {e:#}");
+                return;
+            }
+        }
+
         let slots = model::assign_slots(&self.agents);
         let rgb = model::rgb_frame(&slots);
-        if rgb != self.last_rgb {
+        if force || rgb != self.last_rgb {
             if let Err(e) = self.pad.set_rgb_frame(&rgb) {
                 log::warn!("set_rgb_frame: {e:#}");
-                self.pad.reopen();
+                return;
             }
             self.last_rgb = rgb;
         }
+
         let oled = model::oled_text(&slots);
-        if oled != self.last_oled {
+        if force || oled != self.last_oled {
             if let Err(e) = self.pad.set_oled_text(&oled) {
                 log::warn!("set_oled_text: {e:#}");
-                self.pad.reopen();
+                return;
             }
             self.last_oled = oled;
         }
@@ -92,14 +110,13 @@ impl Daemon {
     /// Log a compact agent summary, but only when it actually changes (so a
     /// steady state doesn't spam a line every relist).
     fn note_agents(&mut self) {
-        let mut keys: Vec<String> =
-            self.agents.iter().map(|a| format!("{}={:?}", a.name, a.state)).collect();
+        let mut keys: Vec<String> = self
+            .agents
+            .iter()
+            .map(|a| format!("{}={:?}", a.name, a.state))
+            .collect();
         keys.sort();
-        let line = format!(
-            "herdr: {} agent(s) {}",
-            self.agents.len(),
-            keys.join(" ")
-        );
+        let line = format!("herdr: {} agent(s) {}", self.agents.len(), keys.join(" "));
         if line != self.last_summary {
             log::info!("{line}");
             self.last_summary = line;
@@ -117,7 +134,7 @@ impl Daemon {
                     .map(|arr| arr.iter().filter_map(Agent::from_value).collect())
                     .unwrap_or_default();
                 self.note_agents();
-                self.push_if_changed();
+                self.push_pad_state(false);
             }
             Err(e) => {
                 // Keep the last-known agents (a brief herdr hiccup shouldn't
@@ -129,10 +146,21 @@ impl Daemon {
         self.need_relist = false;
     }
 
-    /// If a key was pressed on the pad, focus the agent in that slot.
+    /// If a key was pressed on the pad, focus the agent in that slot. A read
+    /// error marks the stale HID handle as disconnected inside `DuckyPad`;
+    /// `tick` will then discover the replacement handle and replay pad state.
     fn poll_key(&mut self) {
-        let Some(slot) = self.pad.read_key_event().ok().flatten() else {
+        if let Err(e) = self.pad.release_key() {
+            log::warn!("release_key: {e:#}");
             return;
+        }
+        let slot = match self.pad.poll_key() {
+            Ok(Some(slot)) => slot,
+            Ok(None) => return,
+            Err(e) => {
+                log::warn!("poll_key: {e:#}");
+                return;
+            }
         };
         if slot < 1 || slot > SLOTS as u8 {
             return;
@@ -151,9 +179,25 @@ impl Daemon {
         }
     }
 
-    /// One loop tick: maybe re-poll herdr, and service any key press.
+    /// One loop tick: reconnect or heartbeat the pad, maybe re-poll herdr, and
+    /// service any key press.
     fn tick(&mut self) {
         let now = Instant::now();
+        if self.pad.is_waiting() && now.duration_since(self.last_pad_retry) >= RELIST_PERIOD {
+            self.last_pad_retry = now;
+            if self.pad.try_reconnect() {
+                self.last_pad_sync = now;
+                self.push_pad_state(true);
+            }
+        } else if self.pad.is_connected()
+            && now.duration_since(self.last_pad_sync) >= PAD_SYNC_PERIOD
+        {
+            // This full replay is also the connection probe. A stale handle
+            // fails the first write and moves the pad into the waiting state.
+            self.last_pad_sync = now;
+            self.push_pad_state(true);
+        }
+
         if self.need_relist || now.duration_since(self.last_relist) >= RELIST_PERIOD {
             self.poll_agents();
         }
@@ -182,11 +226,11 @@ fn run() -> Result<()> {
 }
 
 fn main() {
-    env_logger::Builder::from_env(
-        env_logger::Env::default().default_filter_or("info"),
-    )
-    .init();
-    log::info!("ducky-pad-bridge starting (socket={})", socket_path().display());
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    log::info!(
+        "ducky-pad-bridge starting (socket={})",
+        socket_path().display()
+    );
     if let Err(e) = run() {
         log::error!("fatal: {e:#}");
         std::process::exit(1);

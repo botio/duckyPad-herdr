@@ -29,14 +29,17 @@ pad 對話。
 
 ## 運作方式
 
-- **韌體**（`../firmware/evo`）：三個 custom-HID 指令
-  （`34` RGB frame、`35` OLED 文字、`36` herdr-mode 開/關）＋ 一個在 custom IN
-  report 上的按鍵事件。在「herdr mode」下，15 顆按鍵會從正常鍵盤 report 中被
-  抑制，改以按鍵事件送出。
-- **這個 daemon**：用一次性的 `agent.list` 輪詢 herdr 的 Unix socket（這個
-  socket 是**一條連線只處理一個請求**，所以沒有長期的 push 訂閱），維護一份
-  agent 的快照；任何變化就把 RGB frame + OLED 文字推到 pad。收到按鍵事件時，
-  對那個 agent 的 pane 發一個一次性的 `agent.focus`。
+- **韌體**（`../firmware/evo`）：四個 custom-HID 指令（`34` RGB frame、
+  `35` OLED 文字、`36` herdr-mode 開/關、`37` 讀取按鍵狀態）。在「herdr
+  mode」下，15 顆按鍵會從正常鍵盤 report 中被抑制；收到 `37` 時 pad 會同步
+  掃過所有開關，並在 custom IN report 裡回一個 32-bit little-endian 的
+  key-state bitfield。
+- **這個 daemon**：10ms 主迴圈。每 2 秒用一次性的 `agent.list` 重新輪詢
+  herdr 的 Unix socket（這個 socket 是**一條連線只處理一個請求**，所以沒有
+  長期的 push 訂閱），維護一份 agent 的快照；有任何變化就把 RGB frame +
+  OLED 文字推到 pad。每個 tick 都會輪詢 pad 的 key-state 並做 edge 偵測
+  （按住不放會 latch，所以每次按壓只觸發一次）；偵測到新按壓時，對那個
+  agent 的 pane 發一個一次性的 `agent.focus`。
 
 ## 需求
 
@@ -98,12 +101,13 @@ pad 端是原版 duckyPad EVO 韌體，加上那三個 herdr custom-HID 指令�
 
 ### 免 Keil：現成的 `.dfu`
 
-如果你沒有 Keil，repo 裡附了一份這個韌體的 **GCC** pre-built image，可以直接
-用 `dfu-util` 刷（不需要 Keil、也不需要 cross-toolchain）：
+如果你沒有 Keil，repo 裡附了一份這個韌體（**v3.1.0-herdr** build）的
+**GCC** pre-built image，可以直接用 `dfu-util` 刷（不需要 Keil、也不需要
+cross-toolchain）。刷好跑起來後，OLED boot 畫面會顯示 `duckyPad V3.1.0`：
 
 ```bash
 # 插上 pad 時按住 DFU 鍵，然後（完整旗標 / 恢復方式見主 repo 文件）：
-dfu-util --dev 0483:df11 -a 0 -D ../firmware/duckypad_herdr.dfu
+dfu-util --dev 0483:df11 -a 0 -D ../firmware/duckypad_v3.1.0-herdr.dfu
 ```
 
 > **實驗性。** 這是普通的 `arm-none-eabi-gcc` build——編得過、vector table 也
@@ -143,5 +147,9 @@ dfu-util --dev 0483:df11 -a 0 -D ../firmware/duckypad_herdr.dfu
   - `cmd 34`（RGB）：`[3..47]` = 15 × `(R,G,B)`，依按鍵順序。
   - `cmd 35`（OLED）：`[3]=len(≤56), [4..]` = UTF-8 文字（`\n` = 換行）。
   - `cmd 36`（mode）：`[3]=1` 進入 herdr mode，`0` 離開。
-- **IN**（pad → host），report id `4`：一次按鍵是
-  `[0]=4, [1]=0xF0, [2]=0, [3]=slot(1..=15)`。
+  - `cmd 37`（key state）：沒有 payload；pad 掃過所有開關後用下面的
+    IN report 回覆。
+- **IN**（pad → host），report id `4`：對 `37` 的 key-state 回覆是
+  `[0]=4, [1]=0xF1, [2]=0 (OK), [3..7]` = 32-bit little-endian bitfield，
+  bit `n`（0-based）= 第 `n+1` 顆按鍵正被按住。daemon 讀低 15 bits
+  （15 顆 agent 按鍵）並對它做 edge 偵測。

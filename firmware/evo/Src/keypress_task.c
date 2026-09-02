@@ -249,11 +249,7 @@ void process_keyevent(uint8_t swid, uint8_t event_type)
 {
   ssd1306_SetContrast(OLED_CONTRAST_BRIGHT);
   if(herdr_mode)
-  {
-    if(swid < NEOPIXEL_COUNT && event_type == SW_EVENT_SHORT_PRESS)
-      send_herdr_key_event(swid + 1);
     return;
-  }
   if(swid == SW_PLUS && event_type == SW_EVENT_RELEASE)
   {
     goto_next_profile();

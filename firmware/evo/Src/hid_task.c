@@ -143,17 +143,6 @@ void herdr_set_oled_text(uint8_t* this_msg)
   ssd1306_UpdateScreen();
 }
 
-// Emit a herdr key-press event on the custom IN endpoint (Report 4).
-void send_herdr_key_event(uint8_t slot)
-{
-  uint8_t buf[CUSTOM_HID_EPIN_SIZE];
-  memset(buf, 0, sizeof(buf));
-  buf[0] = HID_DP_TO_PC_USAGE_ID; // 4
-  buf[1] = HERDR_IN_KEY_EVENT;    // 0xF0
-  buf[2] = 0;                     // OK
-  buf[3] = slot;                  // 1-based slot (1..15)
-  USBD_CUSTOM_HID_SendReport(&hUsbDeviceFS, buf, CUSTOM_HID_EPIN_SIZE);
-}
 
 void parse_hid_msg(uint8_t* this_msg)
 {
@@ -256,6 +245,20 @@ void parse_hid_msg(uint8_t* this_msg)
   if(command_type == HID_COMMAND_SET_HERDR_MODE)
   {
     herdr_mode = this_msg[3] ? 1 : 0;
+    return;
+  }
+  /*
+    GET_HERDR_KEYS (37): synchronously sample all switches and return their
+    state as a 32-bit little-endian bitfield. Polling avoids dropping an
+    unsolicited IN report when the endpoint is busy.
+  */
+  if(command_type == HID_COMMAND_GET_HERDR_KEYS)
+  {
+    sw_scan();
+    uint32_t key_state = get_sw_state_bitfield();
+    hid_tx_buf[1] = HERDR_IN_KEY_STATE;
+    memcpy(hid_tx_buf + 3, &key_state, sizeof(key_state));
+    send_hid_cmd_response(hid_tx_buf);
     return;
   }
   /*

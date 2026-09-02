@@ -30,6 +30,16 @@ uint8_t blue_after_brightness[NEOPIXEL_COUNT];
 // make sure spi speed is between 8MHz and 10MHz
 void neopixel_show(uint8_t* red, uint8_t* green, uint8_t* blue, uint8_t brightness)
 {
+  // The WS2812 driver writes 16-bit words to the SPI DR; the F0 SPI must be in
+  // 16-bit mode for both bytes to transmit. The SD card shares SPI1 but needs
+  // 8-bit, so restore 16-bit only if the mode has been changed (i.e. after an
+  // SD access) -- avoids a per-frame re-init.
+  if ((hspi1.Instance->CR1 & 0x00000F00) != SPI_DATASIZE_16BIT)
+  {
+    hspi1.Init.DataSize = SPI_DATASIZE_16BIT;
+    hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
+    HAL_SPI_Init(&hspi1);
+  }
   float brightness_percent = (float)brightness/100;
   for (int i = 0; i < NEOPIXEL_COUNT; ++i)
   {

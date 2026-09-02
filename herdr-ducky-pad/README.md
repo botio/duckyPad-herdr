@@ -29,15 +29,18 @@ With **more than 15 agents**, slots fill by priority
 
 ## How it works
 
-- **Firmware** (`../firmware/evo`): three custom-HID commands
-  (`34` RGB frame, `35` OLED text, `36` herdr-mode on/off) and a key-press
-  event on the custom IN report. In "herdr mode" the 15 keys are suppressed
-  from the normal keyboard report and instead sent as a key event.
-- **This daemon**: polls herdr's Unix socket with a one-shot `agent.list`
-  (the socket handles **one request per connection**, so there is no
-  persistent push subscription), keeps a picture of the agents, and on any
-  change pushes the RGB frame + OLED text to the pad. On a key event it
-  issues a one-shot `agent.focus` for that agent's pane.
+- **Firmware** (`../firmware/evo`): four custom-HID commands (`34` RGB
+  frame, `35` OLED text, `36` herdr-mode on/off, `37` get key state). In
+  "herdr mode" the 15 keys are suppressed from the normal keyboard report;
+  on `37` the pad synchronously samples all switches and answers with a
+  32-bit little-endian key-state bitfield in the custom IN report.
+- **This daemon**: a 10ms main loop. It re-polls herdr's Unix socket with a
+  one-shot `agent.list` every 2s (the socket handles **one request per
+  connection**, so there is no persistent push subscription), keeps a
+  picture of the agents, and on any change pushes the RGB frame + OLED text
+  to the pad. On every tick it polls the pad's key state and edge-detects
+  presses (a held key is latched, so it fires once per press); on a fresh
+  press it issues a one-shot `agent.focus` for that agent's pane.
 
 ## Requirements
 
@@ -102,13 +105,15 @@ program it with the STM32 **DfuSe** tool or `dfu-util`. The full procedure
 
 ### No-Keil shortcut: a pre-built `.dfu`
 
-If you don't have Keil, a pre-built **GCC** image of this firmware ships in the
-repo and can be flashed directly with `dfu-util` (no Keil, no cross-toolchain):
+If you don't have Keil, a pre-built **GCC** image of this firmware (the
+**v3.1.0-herdr** build) ships in the repo and can be flashed directly with
+`dfu-util` (no Keil, no cross-toolchain). The OLED boot screen shows
+`duckyPad V3.1.0` once it's running:
 
 ```bash
 # hold the pad's DFU button while plugging in, then (see the main repo doc for
 # the exact flags / recovery):
-dfu-util --dev 0483:df11 -a 0 -D ../firmware/duckypad_herdr.dfu
+dfu-util --dev 0483:df11 -a 0 -D ../firmware/duckypad_v3.1.0-herdr.dfu
 ```
 
 > **Experimental.** This is a plain `arm-none-eabi-gcc` build — it compiles and
@@ -149,5 +154,9 @@ dfu-util --dev 0483:df11 -a 0 -D ../firmware/duckypad_herdr.dfu
   - `cmd 34` (RGB): `[3..47]` = 15 × `(R,G,B)`, key order.
   - `cmd 35` (OLED): `[3]=len(≤56), [4..]` = UTF-8 text (`\n` = new line).
   - `cmd 36` (mode): `[3]=1` enter herdr mode, `0` leave.
-- **IN** (pad → host), report id `4`: a key press is
-  `[0]=4, [1]=0xF0, [2]=0, [3]=slot(1..=15)`.
+  - `cmd 37` (key state): no payload; the pad samples all switches and
+    answers with the IN report below.
+- **IN** (pad → host), report id `4`: the key-state answer to `37` is
+  `[0]=4, [1]=0xF1, [2]=0 (OK), [3..7]` = 32-bit little-endian bitfield,
+  bit `n` (0-based) set = key `n+1` physically pressed. The daemon reads
+  the low 15 bits (the 15 agent keys) and edge-detects on them.

@@ -33,6 +33,7 @@ enum sd_speed { SD_SPEED_INVALID, SD_SPEED_400KHZ, SD_SPEED_25MHZ };
 static void spi_set_speed(enum sd_speed speed)
 {
   HAL_SPI_DeInit(&hspi1);
+  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
   hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_128;
   if(speed == SD_SPEED_25MHZ)
     hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;

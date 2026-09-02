@@ -6,8 +6,12 @@
 #   * shows a short list of the mapped agents on the pad's OLED,
 #   * on a key press, focuses that agent's pane in herdr.
 #
-# Build the daemon, then it launches once (long-lived) when herdr's API is
-# ready. Set DUCKY_DRY_RUN=1 to run without the physical pad (logs HID writes).
+# The daemon is a long-lived process run by a systemd user service
+# (~/.config/systemd/user/ducky-pad-bridge.service), not by a herdr [[startup]]
+# hook -- herdr's startup hooks are one-shot (they must exit), while this daemon
+# polls herdr continuously. Enable the service with:
+#   systemctl --user enable --now ducky-pad-bridge
+# Set DUCKY_DRY_RUN=1 to run without the physical pad (logs HID writes).
 
 id = "ducky.pad-bridge"
 name = "duckyPad Herdr Bridge"
@@ -19,6 +23,6 @@ platforms = ["linux", "macos"]
 [[build]]
 command = ["cargo", "build", "--release"]
 
-# Long-lived daemon, launched once after the herdr API is ready.
-[[startup]]
-command = ["./target/release/ducky-pad-bridge"]
+# There is deliberately no [[startup]] hook: the daemon is supervised by the
+# systemd user service (see above). Herdr's one-shot startup hook would either
+# race the service's instance or be expected to exit, which a daemon never does.

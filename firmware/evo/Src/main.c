@@ -131,13 +131,17 @@ UART_HandleTypeDef huart1;
   3.0.4
   Increased Anykey-to-Abort check frequency
 
+  Sep 2 2026
+  3.1.0
+  Added herdr light-board mode (agent LEDs, key focus, OLED list)
+
 */
 
 uint32_t current_tick;
 
 uint8_t fw_version_major = 3;
-uint8_t fw_version_minor = 0;
-uint8_t fw_version_patch = 4;
+uint8_t fw_version_minor = 1;
+uint8_t fw_version_patch = 0;
 uint8_t dsvm_version = 2;
 
 /* USER CODE END PV */
