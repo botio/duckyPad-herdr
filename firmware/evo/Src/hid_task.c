@@ -100,17 +100,79 @@ uint8_t parse_hid_goto_profile_by_name(const uint8_t* this_buf)
 
 // ---------- herdr light-board support ----------
 
+// Foreground service, including the no-SD idle loop. Never wait for USB here:
+// retain a pending transition until the shared IN endpoint accepts it.
+static uint8_t f9_sample;
+static uint8_t f9_down;
+static uint8_t f9_reported;
+static uint8_t f9_pending;
+static uint8_t f9_pending_down;
+static uint8_t f9_led_initialized;
+static uint8_t f9_led_down;
+static uint32_t f9_sample_since;
+static uint8_t f9_report[DP_HID_MSG_SIZE] = {HID_USAGE_ID_KEYBOARD};
+
+void herdr_key_task(void)
+{
+  uint8_t sample = herdr_mode && poll_sw_state(HERDR_F9_SWITCH, 1);
+  uint32_t now = millis();
+  if(sample != f9_sample)
+  {
+    f9_sample = sample;
+    f9_sample_since = now;
+  }
+  // Five milliseconds of stable input filters switch bounce, not a hold delay.
+  if(!herdr_mode || now - f9_sample_since >= 5)
+    f9_down = sample;
+
+  if(herdr_mode && (!f9_led_initialized || f9_led_down != f9_down))
+  {
+    set_pixel_3color_update_buffer(HERDR_F9_SWITCH, 255,
+      f9_down ? 0 : 255, f9_down ? 0 : 255);
+    neopixel_draw_current_buffer();
+    f9_led_down = f9_down;
+    f9_led_initialized = 1;
+  }
+  if(!herdr_mode)
+    f9_led_initialized = 0;
+
+  if(hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED)
+  {
+    f9_reported = 0;
+    f9_pending = 0;
+    return;
+  }
+  if(!f9_pending && f9_down != f9_reported)
+  {
+    f9_pending_down = f9_down;
+    f9_pending = 1;
+  }
+  if(f9_pending)
+  {
+    // Report 1 is a standard keyboard report: modifier=0, reserved=0,
+    // six key usages. Usage 0x42 is F9; an all-zero array releases it.
+    f9_report[3] = f9_pending_down ? HERDR_F9_HID_USAGE : 0;
+    uint32_t irq_state = __get_PRIMASK();
+    __disable_irq();
+    uint8_t status = USBD_CUSTOM_HID_SendReport(&hUsbDeviceFS,
+      f9_report, sizeof(f9_report));
+    __set_PRIMASK(irq_state);
+    if(status == USBD_OK)
+    {
+      f9_reported = f9_pending_down;
+      f9_pending = 0;
+    }
+  }
+}
+
 // Set all 15 NeoPixels to a per-key RGB frame supplied by the herdr plugin.
 // Animations are disabled per-pixel so the colors persist until the next frame.
 void herdr_set_rgb_frame(uint8_t* this_msg)
 {
-  // The bridge owns the agent colors, except for the local F9 key. Preserve
-  // its pressed-red feedback across a periodic RGB frame while it is held.
-  uint8_t f9_held = herdr_mode && poll_sw_state(HERDR_F9_SWITCH, 1);
   for(uint8_t i = 0; i < NEOPIXEL_COUNT; i++)
   {
-    if(i == HERDR_F9_SWITCH && f9_held)
-      set_pixel_3color_update_buffer(i, 255, 0, 0);
+    if(herdr_mode && i == HERDR_F9_SWITCH)
+      set_pixel_3color_update_buffer(i, 255, f9_down ? 0 : 255, f9_down ? 0 : 255);
     else
       set_pixel_3color_update_buffer(i, this_msg[3 + i*3], this_msg[3 + i*3 + 1], this_msg[3 + i*3 + 2]);
   }

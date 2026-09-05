@@ -115,16 +115,16 @@ custom-HID commands (`34` RGB frame, `35` OLED text, `36` herdr mode,
 `37` key state).
 
 **Flash it — no Keil, no toolchain needed.** A pre-built image of this
-firmware, the **v3.1.1-herdr** build, ships in the repo. It was produced
+firmware, the **v3.1.2-herdr** build, ships in the repo. It was produced
 with `arm-none-eabi-gcc`; the same build process has been proven to boot
 and run on a real duckyPad. Hold the pad's `DFU` button while plugging it
 in, then:
 
 ```bash
-dfu-util --device 0483:df11 -a 0 -D ../firmware/duckypad_v3.1.1-herdr.dfu
+dfu-util --device 0483:df11 -a 0 -D ../firmware/duckypad_v3.1.2-herdr.dfu
 ```
 
-The OLED boot screen shows `duckyPad V3.1.1` once it's running. The full
+The OLED boot screen shows `duckyPad V3.1.2` once it's running. The full
 procedure (screenshots, and recovery by re-flashing the stock
 `../firmware/duckypad_v3.0.4.dfu`) is in the main repo:
 [`firmware_updates_and_version_history.md`](../firmware_updates_and_version_history.md).
@@ -132,6 +132,12 @@ procedure (screenshots, and recovery by re-flashing the stock
 In herdr mode the **SD card is not needed** — all display data comes over
 USB HID; the microSD is only used by the stock duckyScript/profile
 features.
+
+F9 uses standard USB keyboard reports (usage `0x42`), including key-up on
+release. Since v3.1.2 it is serviced locally even without an SD card or
+profiles: a 1ms foreground cadence with 5ms switch debounce, rather than
+waiting for a daemon RGB update. Busy USB reports are retried. These are
+firmware scheduling intervals, not a measured host input latency guarantee.
 
 **Rebuilding from source — only if you modify the C code.** Either:
 

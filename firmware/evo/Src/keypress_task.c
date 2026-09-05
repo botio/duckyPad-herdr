@@ -245,35 +245,11 @@ void onboard_offboard_switch_release(uint8_t swid, char* release_path)
   play_keyup_animation(swid);
 }
 
-static void set_herdr_f9_color(uint8_t is_pressed)
-{
-  if(is_pressed)
-    set_pixel_3color_update_buffer(HERDR_F9_SWITCH, 255, 0, 0);
-  else
-    set_pixel_3color_update_buffer(HERDR_F9_SWITCH, 255, 255, 255);
-  neopixel_draw_current_buffer();
-}
-
 void process_keyevent(uint8_t swid, uint8_t event_type)
 {
   ssd1306_SetContrast(OLED_CONTRAST_BRIGHT);
   if(herdr_mode)
-  {
-    if(swid == HERDR_F9_SWITCH)
-    {
-      if(event_type == SW_EVENT_SHORT_PRESS)
-      {
-        press_key(HERDR_F9_HID_USAGE, KEY_TYPE_SPECIAL);
-        set_herdr_f9_color(1);
-      }
-      else if(event_type == SW_EVENT_RELEASE)
-      {
-        release_key(HERDR_F9_HID_USAGE, KEY_TYPE_SPECIAL);
-        set_herdr_f9_color(0);
-      }
-    }
-    return;
-  }
+    return; // Local F9 is serviced independently of the profile event queue.
   if(swid == SW_PLUS && event_type == SW_EVENT_RELEASE)
   {
     goto_next_profile();
@@ -333,13 +309,8 @@ void wakeup_from_sleep_and_load_profile(uint8_t profile_to_load)
 
 void handle_sw_event(switch_event_t* this_sw_event)
 {
-  // In herdr mode key 15 remains a local F9 even when normal profile sleep
-  // handling would otherwise consume the press as a wake-up event.
   if(herdr_mode)
-  {
-    process_keyevent(this_sw_event->id, this_sw_event->type);
-    return;
-  }
+    return; // The foreground herdr service owns F9; ignore profile events.
 
   // printf("swid: %d type: %d\n", this_sw_event->id, this_sw_event->type);
   if(is_sleeping && is_plus_minus_button(this_sw_event->id) && this_sw_event->type != SW_EVENT_RELEASE)
@@ -392,7 +363,13 @@ void keypress_task(void)
 {
   while(1)
   {
-    delay_ms(5);
+    herdr_key_task();
+    delay_ms(herdr_mode ? 1 : 5);
+    if(herdr_mode)
+    {
+      clear_sw_queue();
+      continue; // Do not sleep or draw profile UI over the herdr display.
+    }
 
     if(is_in_file_access_mode)
       file_access_mode_task();

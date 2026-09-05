@@ -139,13 +139,16 @@ UART_HandleTypeDef huart1;
   3.1.1
   Reserved the final herdr key as F9 (white at rest, red while held)
 
+  3.1.2
+  Service F9 without SD/profiles; retry busy USB reports and update LEDs locally
+
 */
 
 uint32_t current_tick;
 
 uint8_t fw_version_major = 3;
 uint8_t fw_version_minor = 1;
-uint8_t fw_version_patch = 1;
+uint8_t fw_version_patch = 2;
 uint8_t dsvm_version = 2;
 
 /* USER CODE END PV */

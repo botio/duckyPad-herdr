@@ -58,6 +58,7 @@
 #define HID_FILE_READ_PAYLOAD_SIZE 61
 
 void handle_hid_command(uint8_t* hid_rx_buf);
+void herdr_key_task(void);
 void sd_walk(uint8_t* res_buf);
 void md5_test(void);
 uint8_t make_file_walk_hid_packet(char* file_name, char* profile_name, uint8_t* tx_buf);

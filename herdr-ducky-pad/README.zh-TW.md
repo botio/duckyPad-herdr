@@ -109,20 +109,25 @@ pad 端是原版 duckyPad EVO 韌體，加上四個 herdr custom-HID 指令
 （`34` RGB、`35` OLED、`36` herdr mode、`37` key state）。
 
 **刷寫——不需要 Keil、不需要 toolchain。** repo 裡附了一份這個韌體的
-pre-built image（**v3.1.1-herdr** build）。它是用 `arm-none-eabi-gcc`
+pre-built image（**v3.1.2-herdr** build）。它是用 `arm-none-eabi-gcc`
 產出的；同一套 build 流程已經證實能在真的 duckyPad 上 boot 並運作。
 插上 pad 時按住 `DFU` 鍵，然後：
 
 ```bash
-dfu-util --device 0483:df11 -a 0 -D ../firmware/duckypad_v3.1.1-herdr.dfu
+dfu-util --device 0483:df11 -a 0 -D ../firmware/duckypad_v3.1.2-herdr.dfu
 ```
 
-跑起來後，OLED boot 畫面會顯示 `duckyPad V3.1.1`。完整步驟（截圖、
+跑起來後，OLED boot 畫面會顯示 `duckyPad V3.1.2`。完整步驟（截圖、
 刷回 stock `../firmware/duckypad_v3.0.4.dfu` 的恢復方式）在主 repo：
 [`firmware_updates_and_version_history.md`](../firmware_updates_and_version_history.md)。
 
 在 herdr mode 下**不需要 SD 卡**——所有顯示資料都走 USB HID；microSD
 只給原版的 duckyScript / profile 功能用。
+
+F9 使用標準 USB 鍵盤 report（usage `0x42`），放開時送出 key-up。
+從 v3.1.2 起，即使沒有 SD 卡或 profile，也由韌體本機處理：
+前景迴圈每 1ms 服務一次，加上 5ms 按鍵去彈跳，不必等 daemon 更新燈色。
+USB 忙碌時會保留回報並重送。這些是韌體排程間隔，並非電腦端實測延遲保證。
 
 **要從 source 重建——只有在你改 C code 的時候。** 兩選一：
 

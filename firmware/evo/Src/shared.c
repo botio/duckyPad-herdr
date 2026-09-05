@@ -3,6 +3,7 @@
 #include "main.h"
 #include "shared.h"
 #include <time.h>
+#include "hid_task.h"
 
 char temp_buf[TEMP_BUFSIZE];
 
@@ -46,7 +47,10 @@ void strip_newline(char* line, uint32_t size)
 void idle_loop(void)
 {
   while(1)
-    delay_ms(1000);
+  {
+    herdr_key_task();
+    delay_ms(1);
+  }
 }
 
 uint32_t get_uuid(void)
