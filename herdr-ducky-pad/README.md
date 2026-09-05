@@ -5,9 +5,10 @@
 A [herdr](https://herdr.dev) plugin that drives a **duckyPad** (STM32F072 EVO
 macropad) from herdr's agent state.
 
-- **N herdr agents → N lit keys.** Each of the pad's 15 NeoPixel keys represents
-  one agent; the key's **color is that agent's state**.
-- **Press a key → focus that agent's pane** in herdr.
+- **Up to 14 herdr agents → 14 lit keys.** Each of the first 14 NeoPixel keys
+  represents one agent; the key's **color is that agent's state**.
+- **Press an agent key → focus that agent's pane** in herdr.
+- **Key 15 is F9.** It is white at rest and red while pressed or held.
 - The pad's **OLED** shows a short list of the mapped agents.
 
 No hardware changes. Everything on the pad side is firmware (the pad is a
@@ -28,16 +29,17 @@ The duckyPad set up as a herdr light board:
 | `unknown` | amber          |
 | `idle`    | dim gray       |
 
-With **more than 15 agents**, the first 15 in herdr's list order light
-keys; overflow agents stay unlit until a slot frees.
+With **more than 14 agents**, the first 14 in herdr's list order light
+keys; overflow agents stay unlit until an agent slot frees.
 
 ## How it works
 
 - **Firmware** (`../firmware/evo`): four custom-HID commands (`34` RGB
   frame, `35` OLED text, `36` herdr-mode on/off, `37` get key state). In
-  "herdr mode" the 15 keys are suppressed from the normal keyboard report;
-  on `37` the pad synchronously samples all switches and answers with a
-  32-bit little-endian key-state bitfield in the custom IN report.
+  "herdr mode" the first 14 keys are suppressed from the normal keyboard
+  report; key 15 stays a local **F9** key (white at rest, red while pressed
+  or held). On `37` the pad synchronously samples all switches and answers
+  with a 32-bit little-endian key-state bitfield in the custom IN report.
 - **This daemon**: a 10ms main loop. It re-polls herdr's Unix socket with a
   one-shot `agent.list` every 2s (the socket handles **one request per
   connection**, so there is no persistent push subscription), keeps a
@@ -113,16 +115,16 @@ custom-HID commands (`34` RGB frame, `35` OLED text, `36` herdr mode,
 `37` key state).
 
 **Flash it — no Keil, no toolchain needed.** A pre-built image of this
-firmware, the **v3.1.0-herdr** build, ships in the repo. It was produced
+firmware, the **v3.1.1-herdr** build, ships in the repo. It was produced
 with `arm-none-eabi-gcc`; the same build process has been proven to boot
 and run on a real duckyPad. Hold the pad's `DFU` button while plugging it
 in, then:
 
 ```bash
-dfu-util --device 0483:df11 -a 0 -D ../firmware/duckypad_v3.1.0-herdr.dfu
+dfu-util --device 0483:df11 -a 0 -D ../firmware/duckypad_v3.1.1-herdr.dfu
 ```
 
-The OLED boot screen shows `duckyPad V3.1.0` once it's running. The full
+The OLED boot screen shows `duckyPad V3.1.1` once it's running. The full
 procedure (screenshots, and recovery by re-flashing the stock
 `../firmware/duckypad_v3.0.4.dfu`) is in the main repo:
 [`firmware_updates_and_version_history.md`](../firmware_updates_and_version_history.md).
@@ -143,17 +145,16 @@ features.
 1. **Build & flash the firmware** (see [Building & flashing the firmware](#building--flashing-the-firmware) above).
 2. **Plug in** the duckyPad (USB) and start **herdr** in a real session with a
    few agents.
-3. **Start the daemon** — see
-   [Install as a herdr plugin](#install-as-a-herdr-plugin) above; the daemon
-   runs as a systemd user service:
-   ```bash
-   systemctl --user enable --now ducky-pad-bridge
-   ```
+3. **Start the daemon** — run `./install.sh` from this directory; it builds
+   and starts the user service.
 4. **Observe:**
-   - Each agent lights a key in its state color; when an agent moves to
-     `blocked` it turns red, `working` green, `done` blue, `idle` dim.
+   - Each of the first 14 agents lights a key in its state color; when an
+     agent moves to `blocked` it turns red, `working` green, `done` blue,
+     `idle` dim.
+   - Key 15 is **white** at rest; pressing or holding it sends **F9** and
+     makes it **red** until release.
    - The **OLED** lists the mapped agents (`1:name 2:name ...`).
-   - **Press a key** → herdr focuses that agent's pane.
+   - **Press an agent key** → herdr focuses that agent's pane.
 
 ## Troubleshooting
 

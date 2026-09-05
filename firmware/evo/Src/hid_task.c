@@ -104,9 +104,15 @@ uint8_t parse_hid_goto_profile_by_name(const uint8_t* this_buf)
 // Animations are disabled per-pixel so the colors persist until the next frame.
 void herdr_set_rgb_frame(uint8_t* this_msg)
 {
+  // The bridge owns the agent colors, except for the local F9 key. Preserve
+  // its pressed-red feedback across a periodic RGB frame while it is held.
+  uint8_t f9_held = herdr_mode && poll_sw_state(HERDR_F9_SWITCH, 1);
   for(uint8_t i = 0; i < NEOPIXEL_COUNT; i++)
   {
-    set_pixel_3color_update_buffer(i, this_msg[3 + i*3], this_msg[3 + i*3 + 1], this_msg[3 + i*3 + 2]);
+    if(i == HERDR_F9_SWITCH && f9_held)
+      set_pixel_3color_update_buffer(i, 255, 0, 0);
+    else
+      set_pixel_3color_update_buffer(i, this_msg[3 + i*3], this_msg[3 + i*3 + 1], this_msg[3 + i*3 + 2]);
   }
   neopixel_draw_current_buffer();
 }

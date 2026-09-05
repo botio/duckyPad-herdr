@@ -54,8 +54,11 @@ impl AgentState {
     }
 }
 
-/// Number of lit keys (NeoPixels) the duckyPad exposes.
-pub const SLOTS: usize = 15;
+/// Physical NeoPixel keys on the duckyPad.
+pub const PAD_SLOTS: usize = 15;
+/// The final physical key is reserved for the firmware-owned F9 shortcut.
+pub const AGENT_SLOTS: usize = PAD_SLOTS - 1;
+const F9_IDLE_COLOR: [u8; 3] = [255, 255, 255];
 
 /// One herdr agent as the daemon tracks it.
 #[derive(Debug, Clone)]
@@ -99,28 +102,26 @@ fn pick_name(a: &str, b: &str, c: &str, d: &str) -> String {
     "agent".to_string()
 }
 
-/// Sticky assignment of herdr agents to the 15 pad keys.
+/// Sticky assignment of herdr agents to the first 14 pad keys.
 ///
 /// Identity is `pane_id`. By default a new agent takes the lowest free slot,
 /// visited in `agent.list` order; an existing agent keeps its slot no matter
 /// how the list reorders or how states change; a slot frees when its agent
 /// disappears.
 ///
-/// `update` accepts an optional `pinned` map (slot 1..15 -> pane_id). A pinned
-/// agent is kept on its pinned slot, overriding the sticky rule. `update` is
-/// idempotent for an unchanged list, so it can be called on every pad push and
-/// on every key press without side effects.
+/// Key 15 is not an agent slot: firmware reserves it as the white-at-rest,
+/// red-while-held F9 shortcut.
 #[derive(Debug, Clone, Default)]
 pub struct SlotMap {
     assign: std::collections::HashMap<String, usize>,
 }
 
 impl SlotMap {
-    /// Reconcile with a fresh `agent.list`. Returns the 15 slots as
+    /// Reconcile with a fresh `agent.list`. Returns the 14 agent slots as
     /// `Vec<Option<&Agent>>` (index = key number - 1); overflow agents
-    /// (more than 15 in the list) stay unlit until a slot frees.
+    /// (more than 14 in the list) stay unlit until a slot frees.
     ///
-    /// `pinned` optionally maps a slot (1..15) to a pane_id; pinned agents
+    /// `pinned` optionally maps a slot (1..14) to a pane_id; pinned agents
     /// keep that slot, overriding the sticky lowest-free-slot rule.
     pub fn update<'a>(
         &mut self,
@@ -132,7 +133,7 @@ impl SlotMap {
         self.assign
             .retain(|pane_id, _| seen.contains(pane_id.as_str()));
 
-        let mut used = [false; SLOTS];
+        let mut used = [false; AGENT_SLOTS];
         for &slot in self.assign.values() {
             used[slot] = true;
         }
@@ -148,10 +149,10 @@ impl SlotMap {
                 },
                 None => match pin_slot(pinned, &a.pane_id) {
                     Some(p) if !used[p] => p,
-                    _ => used.iter().position(|u| !*u).unwrap_or(SLOTS),
+                    _ => used.iter().position(|u| !*u).unwrap_or(AGENT_SLOTS),
                 },
             };
-            if target < SLOTS && !used[target] {
+            if target < AGENT_SLOTS && !used[target] {
                 // release old slot, take new
                 if let Some(&old) = self.assign.get(&a.pane_id) {
                     used[old] = false;
@@ -172,8 +173,8 @@ impl SlotMap {
                         other_slot == Some(slot) && p != &a.pane_id
                     });
                 if claimed_by_other {
-                    let free = used.iter().position(|u| !*u).unwrap_or(SLOTS);
-                    if free < SLOTS {
+                    let free = used.iter().position(|u| !*u).unwrap_or(AGENT_SLOTS);
+                    if free < AGENT_SLOTS {
                         used[slot] = false;
                         used[free] = true;
                         self.assign.insert(a.pane_id.clone(), free);
@@ -182,7 +183,7 @@ impl SlotMap {
             }
         }
 
-        let mut slots: Vec<Option<&Agent>> = vec![None; SLOTS];
+        let mut slots: Vec<Option<&Agent>> = vec![None; AGENT_SLOTS];
         for a in agents {
             if let Some(&slot) = self.assign.get(&a.pane_id) {
                 slots[slot] = Some(a);
@@ -198,21 +199,26 @@ fn pin_slot(
     pane_id: &str,
 ) -> Option<usize> {
     for (slot, pane) in pinned {
-        if *pane == pane_id && (1..=SLOTS).contains(slot) {
+        if *pane == pane_id && (1..=AGENT_SLOTS).contains(slot) {
             return Some(slot - 1);
         }
     }
     None
 }
 
-/// Encode the 15-slot frame as 45 bytes: key `i` -> bytes `[i*3, i*3+1, i*3+2]`
-/// as (R,G,B). Unlit slots are (0,0,0).
+/// Encode the full 15-key frame as 45 bytes: agent key `i` -> bytes
+/// `[i*3, i*3+1, i*3+2]` as (R,G,B). Empty agent slots are (0,0,0); key 15 is
+/// always white at rest so firmware can turn it red while its F9 shortcut is
+/// held.
 ///
 /// `palette` is an optional user color override; pass an empty map to use the
 /// built-in palette.
-pub fn rgb_frame(slots: &[Option<&Agent>], palette: &std::collections::HashMap<String, [u8; 3]>) -> [u8; 45] {
-    let mut out = [0u8; 45];
-    for (i, slot) in slots.iter().enumerate().take(SLOTS) {
+pub fn rgb_frame(
+    slots: &[Option<&Agent>],
+    palette: &std::collections::HashMap<String, [u8; 3]>,
+) -> [u8; PAD_SLOTS * 3] {
+    let mut out = [0u8; PAD_SLOTS * 3];
+    for (i, slot) in slots.iter().enumerate().take(AGENT_SLOTS) {
         let [r, g, b] = match slot {
             Some(a) => a.state.color_with(palette),
             None => [0, 0, 0],
@@ -221,6 +227,7 @@ pub fn rgb_frame(slots: &[Option<&Agent>], palette: &std::collections::HashMap<S
         out[i * 3 + 1] = g;
         out[i * 3 + 2] = b;
     }
+    out[AGENT_SLOTS * 3..].copy_from_slice(&F9_IDLE_COLOR);
     out
 }
 
@@ -232,7 +239,7 @@ pub fn oled_text(slots: &[Option<&Agent>]) -> String {
     const MAX_LINES: usize = 4;
     let mut lines: Vec<String> = Vec::new();
     let mut cur = String::new();
-    for (i, slot) in slots.iter().enumerate().take(SLOTS) {
+    for (i, slot) in slots.iter().enumerate().take(AGENT_SLOTS) {
         let Some(a) = slot else { continue };
         let name: String = a.name.chars().take(9).collect();
         let item = format!("{}:{} ", i + 1, name);
@@ -316,6 +323,20 @@ mod tests {
     }
 
     #[test]
+    fn fifteenth_key_is_reserved_for_f9() {
+        let mut map = SlotMap::default();
+        let agents: Vec<Agent> = (0..=AGENT_SLOTS)
+            .map(|i| agent(&format!("p-{i}"), AgentState::Idle))
+            .collect();
+
+        let slots = map.update(&agents, &no_pins());
+
+        assert_eq!(slots.len(), AGENT_SLOTS);
+        assert_eq!(slots[AGENT_SLOTS - 1].unwrap().pane_id, "p-13");
+        assert!(!map.assign.contains_key("p-14"));
+    }
+
+    #[test]
     fn state_changes_do_not_move_slots() {
         let mut map = SlotMap::default();
         let a = vec![
@@ -372,6 +393,13 @@ mod tests {
         let rgb = rgb_frame(&slots, &HashMap::new());
         // slot 0 -> bytes [0,1,2]
         assert_eq!([rgb[0], rgb[1], rgb[2]], [0, 255, 0]);
+    }
+
+    #[test]
+    fn f9_key_is_white_in_every_rgb_frame() {
+        let rgb = rgb_frame(&[], &HashMap::new());
+
+        assert_eq!(&rgb[AGENT_SLOTS * 3..], &[255, 255, 255]);
     }
     #[test]
     fn palette_override_changes_frame() {

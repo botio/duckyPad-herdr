@@ -197,6 +197,7 @@ fn full_loop_mock_socket() {
         "slot1 green (B working)"
     );
     assert_eq!([f0[6], f0[7], f0[8]], [48, 48, 48], "slot2 dim (C idle)");
+    assert_eq!(&f0[42..45], &[255, 255, 255], "key 15 white (F9)");
 
     // Frame 1 (C -> blocked): sticky mapping — A stays on key 1, B on key 2,
     // C on key 3; only C's color changes (dim -> red).
@@ -212,4 +213,5 @@ fn full_loop_mock_socket() {
         [255, 0, 0],
         "slot2 red (C now blocked)"
     );
+    assert_eq!(&f1[42..45], &[255, 255, 255], "key 15 stays white (F9)");
 }

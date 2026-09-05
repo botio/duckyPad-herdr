@@ -15,11 +15,13 @@
 //!
 //! - `colors`: state name -> `[r, g, b]`. Only present keys override the
 //!   built-in palette; missing keys keep the built-in color.
-//! - `pinned_slots`: slot (1..15) -> pane_id. When a pane_id is pinned, the
-//!   agent stays on that slot (overriding the sticky lowest-free-slot rule).
-//!   Unpinned slots use the sticky rule.
+//! - `pinned_slots`: agent slot (1..14) -> pane_id. Key 15 is the fixed F9
+//!   shortcut and cannot be pinned. When a pane_id is pinned, the agent stays
+//!   on that slot (overriding the sticky lowest-free-slot rule). Unpinned slots
+//!   use the sticky rule.
 
 use std::collections::HashMap;
+use crate::model::AGENT_SLOTS;
 
 pub const SCHEMA_VERSION: u32 = 1;
 
@@ -27,7 +29,7 @@ pub const SCHEMA_VERSION: u32 = 1;
 pub struct HerdrConfig {
     /// state name -> [r, g, b] override.
     pub colors: HashMap<String, [u8; 3]>,
-    /// slot (1..15) -> pane_id pin.
+    /// Agent slot (1..14) -> pane_id pin; key 15 is the fixed F9 shortcut.
     pub pinned_slots: HashMap<usize, String>,
 }
 
@@ -90,8 +92,8 @@ impl HerdrConfig {
             let slot: usize = slot
                 .parse()
                 .map_err(|_| format!("slot {slot:?} not an integer"))?;
-            if !(1..=15).contains(&slot) {
-                return Err(format!("slot {slot} out of range 1..15"));
+            if !(1..=AGENT_SLOTS).contains(&slot) {
+                return Err(format!("slot {slot} out of range 1..{AGENT_SLOTS}"));
             }
             if pane.is_empty() {
                 return Err(format!("slot {slot} pane_id must be a non-empty string"));
@@ -129,13 +131,13 @@ mod tests {
         let text = r#"{
             "schema_version": 1,
             "colors": {"working": [10, 20, 30], "blocked": [255, 0, 0]},
-            "pinned_slots": {"1": "pane-a", "15": "pane-z"}
+            "pinned_slots": {"1": "pane-a", "14": "pane-z"}
         }"#;
         let cfg = HerdrConfig::parse(text).unwrap();
         assert_eq!(cfg.colors.get("working").copied(), Some([10, 20, 30]));
         assert_eq!(cfg.colors.get("blocked").copied(), Some([255, 0, 0]));
         assert_eq!(cfg.pinned_slots.get(&1), Some(&"pane-a".to_string()));
-        assert_eq!(cfg.pinned_slots.get(&15), Some(&"pane-z".to_string()));
+        assert_eq!(cfg.pinned_slots.get(&14), Some(&"pane-z".to_string()));
     }
 
     #[test]
@@ -153,10 +155,10 @@ mod tests {
     }
 
     #[test]
-    fn reject_slot_out_of_range() {
-        let err = HerdrConfig::parse(r#"{"pinned_slots": {"16": "x"}}"#)
+    fn reject_f9_slot_pin() {
+        let err = HerdrConfig::parse(r#"{"pinned_slots": {"15": "x"}}"#)
             .unwrap_err();
-        assert!(err.contains("16"));
+        assert!(err.contains("15"));
     }
 
     #[test]

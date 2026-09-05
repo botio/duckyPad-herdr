@@ -2,22 +2,24 @@
 #
 # A duckyPad (STM32F072 macropad) is exposed as a custom-HID device
 # (VID 0x483 / PID 0xd11c). This plugin's daemon opens that device and:
-#   * lights one NeoPixel key per herdr agent, colored by the agent's state,
+#   * lights one of the first 14 NeoPixel keys per herdr agent, colored by
+#     the agent's state,
+#   * reserves the final key as a local F9 shortcut (white at rest, red while
+#     pressed),
 #   * shows a short list of the mapped agents on the pad's OLED,
-#   * on a key press, focuses that agent's pane in herdr.
+#   * on an agent-key press, focuses that agent's pane in herdr.
 #
-# The daemon is a long-lived process run by a systemd user service
-# (~/.config/systemd/user/ducky-pad-bridge.service), not by a herdr [[startup]]
-# hook -- herdr's startup hooks are one-shot (they must exit), while this daemon
-# polls herdr continuously. Enable the service with:
-#   systemctl --user enable --now ducky-pad-bridge
+# The daemon is a long-lived process installed as a user service: a systemd
+# user unit on Linux or a launchd LaunchAgent on macOS. It is not a herdr
+# [[startup]] hook — those hooks are one-shot (they must exit), while this
+# daemon polls herdr continuously. Enable it with `./install.sh`.
 # Set DUCKY_DRY_RUN=1 to run without the physical pad (logs HID writes).
 
 id = "ducky.pad-bridge"
 name = "duckyPad Herdr Bridge"
-version = "0.2.0"
+version = "0.2.1"
 min_herdr_version = "0.8.0"
-description = "Light a duckyPad from herdr agent state: N agents -> N keys, key color = state, press a key to focus that agent. Key assignment is stable per agent (pane_id) for as long as it stays in the list."
+description = "Light a duckyPad from herdr agent state: 14 agents -> 14 keys, key color = state; key 15 is F9 (white at rest, red while pressed). Agent assignment is stable by pane_id."
 platforms = ["linux", "macos"]
 
 [[build]]

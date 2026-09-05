@@ -5,9 +5,10 @@
 一個 [herdr](https://herdr.dev) 外掛，用 herdr 的 agent 狀態來驅動 **duckyPad**
 （STM32F072 EVO 巨量鍵盤）。
 
-- **N 個 herdr agent → N 顆亮的按鍵。** 鍵盤的 15 顆 NeoPixel 按鍵各代表一個
-  agent；按鍵的**顏色就是該 agent 的状態**。
-- **按下一顆按鍵 → 在 herdr 中聚焦（focus）那個 agent 的 pane。**
+- **最多 14 個 herdr agent → 14 顆亮的按鍵。** 前 14 顆 NeoPixel 按鍵各代表
+  一個 agent；按鍵的**顏色就是該 agent 的狀態**。
+- **按 agent 的按鍵 → 在 herdr 中聚焦（focus）那個 agent 的 pane。**
+- **第 15 顆是 F9。** 平常白光，按下或按住時是紅光。
 - 鍵盤的 **OLED** 顯示已映射 agent 的簡短清單。
 
 不改动硬體。pad 端全部是韌體（pad 是一個 custom-HID 裝置，VID `0x483` /
@@ -28,16 +29,17 @@ duckyPad 裝成 herdr 光板後的樣子：
 | `unknown` | 琥珀     |
 | `idle`    | 暗灰     |
 
-**超過 15 個 agent** 時，依 herdr 的 list 順序取前 15 個點燈；
-多出來的 agent 先不亮，等有槽位空出來才進場。
+**超過 14 個 agent** 時，依 herdr 的 list 順序取前 14 個點燈；
+多出來的 agent 先不亮，等 agent 槽位空出來才進場。
 
 ## 運作方式
 
 - **韌體**（`../firmware/evo`）：四個 custom-HID 指令（`34` RGB frame、
   `35` OLED 文字、`36` herdr-mode 開/關、`37` 讀取按鍵狀態）。在「herdr
-  mode」下，15 顆按鍵會從正常鍵盤 report 中被抑制；收到 `37` 時 pad 會同步
-  掃過所有開關，並在 custom IN report 裡回一個 32-bit little-endian 的
-  key-state bitfield。
+  mode」下，前 14 顆按鍵會從正常鍵盤 report 中被抑制；第 15 顆維持本機
+  **F9**（平常白光，按下或按住時紅光）。收到 `37` 時 pad 會同步掃過所有
+  開關，並在 custom IN report 裡回一個 32-bit little-endian 的 key-state
+  bitfield。
 - **這個 daemon**：10ms 主迴圈。每 2 秒用一次性的 `agent.list` 重新輪詢
   herdr 的 Unix socket（這個 socket 是**一條連線只處理一個請求**，所以沒有
   長期的 push 訂閱），維護一份 agent 的快照；有任何變化就把 RGB frame +
@@ -107,15 +109,15 @@ pad 端是原版 duckyPad EVO 韌體，加上四個 herdr custom-HID 指令
 （`34` RGB、`35` OLED、`36` herdr mode、`37` key state）。
 
 **刷寫——不需要 Keil、不需要 toolchain。** repo 裡附了一份這個韌體的
-pre-built image（**v3.1.0-herdr** build）。它是用 `arm-none-eabi-gcc`
+pre-built image（**v3.1.1-herdr** build）。它是用 `arm-none-eabi-gcc`
 產出的；同一套 build 流程已經證實能在真的 duckyPad 上 boot 並運作。
 插上 pad 時按住 `DFU` 鍵，然後：
 
 ```bash
-dfu-util --device 0483:df11 -a 0 -D ../firmware/duckypad_v3.1.0-herdr.dfu
+dfu-util --device 0483:df11 -a 0 -D ../firmware/duckypad_v3.1.1-herdr.dfu
 ```
 
-跑起來後，OLED boot 畫面會顯示 `duckyPad V3.1.0`。完整步驟（截圖、
+跑起來後，OLED boot 畫面會顯示 `duckyPad V3.1.1`。完整步驟（截圖、
 刷回 stock `../firmware/duckypad_v3.0.4.dfu` 的恢復方式）在主 repo：
 [`firmware_updates_and_version_history.md`](../firmware_updates_and_version_history.md)。
 
@@ -134,16 +136,14 @@ dfu-util --device 0483:df11 -a 0 -D ../firmware/duckypad_v3.1.0-herdr.dfu
 1. **建置 & 刷寫韌體**（見上方「建置 & 刷寫韌體」）。
 2. **插上** duckyPad（USB），並在一個真實 session 裡啟動 **herdr**，裡面放
    幾個 agent。
-3. **啟動 daemon**——見上方「作為 herdr 外掛安裝」；daemon 是跑成
-   systemd user service：
-   ```bash
-   systemctl --user enable --now ducky-pad-bridge
-   ```
+3. **啟動 daemon**——在這個目錄跑 `./install.sh`；它會建置並啟動使用者
+   服務。
 4. **觀察：**
-   - 每個 agent 會按自己的狀態顏色亮一顆按鍵；agent 變 `blocked` 就轉紅、
+   - 前 14 個 agent 各按自己的狀態顏色亮一顆按鍵；agent 變 `blocked` 就轉紅、
      `working` 綠、`done` 藍、`idle` 暗。
+   - 第 15 顆平常是**白光**；按下或按住時會送出 **F9**，並維持**紅光**到放開。
    - **OLED** 列出已映射的 agent（`1:name 2:name ...`）。
-   - **按下一顆按鍵** → herdr 聚焦那個 agent 的 pane。
+   - **按 agent 的按鍵** → herdr 聚焦那個 agent 的 pane。
 
 ## 疑難排解
 

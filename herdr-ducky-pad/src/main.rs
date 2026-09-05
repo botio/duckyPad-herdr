@@ -1,10 +1,11 @@
 //! duckyPad <-> herdr bridge daemon.
 //!
-//! The pad is a 15-key custom-HID device. This daemon polls herdr's Unix
-//! socket for the live set of agents, lights one NeoPixel key per agent
-//! (colored by state: blocked=red, working=green, done=blue, idle=dim-gray,
-//! unknown=amber), lists the mapped agents on the OLED, and — when a key is
-//! pressed — focuses that agent's pane.
+//! The pad has 14 agent keys plus a firmware-owned F9 key. This daemon polls
+//! herdr's Unix socket for the live set of agents, lights one NeoPixel key per
+//! agent (colored by state: blocked=red, working=green, done=blue,
+//! idle=dim-gray, unknown=amber), lists mapped agents on the OLED, and — when
+//! an agent key is pressed — focuses that agent's pane. Key 15 stays white at
+//! rest and is handled entirely by firmware as an F9 shortcut.
 //!
 //! The herdr API socket handles one request per connection, so `agent.list` is
 //! polled on a short interval and a key press issues a one-shot `agent.focus`.
@@ -18,7 +19,7 @@ mod model;
 use anyhow::Result;
 use herdr::HerdrClient;
 use hid::DuckyPad;
-use model::{Agent, SlotMap, SLOTS};
+use model::{Agent, SlotMap, AGENT_SLOTS};
 use std::time::{Duration, Instant};
 
 /// How often to re-poll herdr for the agent list.
@@ -155,9 +156,11 @@ impl Daemon {
         self.need_relist = false;
     }
 
-    /// If a key was pressed on the pad, focus the agent in that slot. A read
-    /// error marks the stale HID handle as disconnected inside `DuckyPad`;
-    /// `tick` will then discover the replacement handle and replay pad state.
+    /// If an agent key was pressed on the pad, focus the agent in that slot.
+    /// Key 15 is the firmware-owned F9 shortcut and is deliberately ignored
+    /// here. A read error marks the stale HID handle as disconnected inside
+    /// `DuckyPad`; `tick` will then discover the replacement handle and replay
+    /// pad state.
     fn poll_key(&mut self) {
         if let Err(e) = self.pad.release_key() {
             log::warn!("release_key: {e:#}");
@@ -171,7 +174,7 @@ impl Daemon {
                 return;
             }
         };
-        if slot < 1 || slot > SLOTS as u8 {
+        if !(1..=AGENT_SLOTS as u8).contains(&slot) {
             return;
         }
         let Some(target) = self
