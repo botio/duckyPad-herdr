@@ -335,6 +335,16 @@ void parse_hid_msg(uint8_t* this_msg)
     [1]   Unused
     [2]   Status
   */
+  if(command_type == HID_COMMAND_EXIT_FILE_ACCESS)
+  {
+    f_close(&sd_file);
+    is_in_file_access_mode = 0;
+    if(!herdr_mode && is_valid_profile_number(current_profile_number))
+      goto_profile(current_profile_number);
+    send_hid_cmd_response(hid_tx_buf);
+    return;
+  }
+
   if(is_busy)
   {
     hid_tx_buf[2] = HID_RESPONSE_BUSY;
@@ -812,7 +822,12 @@ void sd_walk(uint8_t* res_buf)
     sd_walk_state = SD_WALK_STATE_NEW_PROFILE_DIR;
     sd_walk_current_profile_number = find_first_profile();
     if(sd_walk_current_profile_number == PROFILE_OVERFLOW)
-      draw_fatal_error(10);
+    {
+      sd_walk_state = SD_WALK_STATE_IDLE;
+      res_buf[1] = 4; // End of Transmission
+      res_buf[2] = HID_RESPONSE_NO_PROFILE;
+      return;
+    }
     // HID Response: Ack
     res_buf[1] = 0;
     return;

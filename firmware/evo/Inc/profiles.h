@@ -51,6 +51,7 @@ uint8_t mount_sd(void);
 uint8_t scan_profiles(void);
 uint8_t load_profile(uint8_t profile_number);
 void goto_profile(uint8_t profile_number);
+uint8_t is_valid_profile_number(uint8_t profile_number);
 void goto_prev_profile(void);
 void goto_next_profile(void);
 

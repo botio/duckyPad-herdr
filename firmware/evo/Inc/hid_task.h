@@ -33,6 +33,7 @@
 #define HID_COMMAND_SET_OLED_TEXT 35
 #define HID_COMMAND_SET_HERDR_MODE 36
 #define HID_COMMAND_GET_HERDR_KEYS 37
+#define HID_COMMAND_EXIT_FILE_ACCESS 38
 
 // In herdr mode, the final mechanical key is reserved as a local F9 shortcut
 // instead of an agent-focus key. Switches and LEDs are both zero-indexed.
