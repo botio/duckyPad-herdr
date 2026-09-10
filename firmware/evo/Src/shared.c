@@ -88,7 +88,7 @@ uint8_t RTC_SetFromUnixTimestamp(RTC_HandleTypeDef *rtc_ptr, uint32_t unix_times
   RTC_TimeTypeDef sTime = {0};
   RTC_DateTypeDef sDate = {0};
   time_t raw_time = (time_t)unix_timestamp;
-  struct tm *time_info = localtime(&raw_time);
+  struct tm *time_info = gmtime(&raw_time);
   if (time_info == NULL)
     return 11;
   HAL_PWR_EnableBkUpAccess();
@@ -117,25 +117,28 @@ uint32_t get_unix_ts(RTC_HandleTypeDef *rtc_ptr)
 {
   RTC_TimeTypeDef sTime = {0};
   RTC_DateTypeDef sDate = {0};
-  struct tm temp_tm = {0};
-  
   HAL_RTC_GetTime(rtc_ptr, &sTime, RTC_FORMAT_BIN);
   HAL_RTC_GetDate(rtc_ptr, &sDate, RTC_FORMAT_BIN);
 
-  temp_tm.tm_year = sDate.Year + 100; 
-  temp_tm.tm_mon  = sDate.Month - 1;
-  temp_tm.tm_mday = sDate.Date;
-  temp_tm.tm_hour = sTime.Hours;
-  temp_tm.tm_min  = sTime.Minutes;
-  temp_tm.tm_sec  = sTime.Seconds;
-  temp_tm.tm_isdst = 0; // Explicitly set DST to 0 (we are handling offsets manually)
-
-  return mktime(&temp_tm);
+  /* RTC stores UTC, with a separate display offset. Avoid libc's timezone
+     parser and DST machinery; convert the Gregorian date directly to days
+     since 1970-01-01 (the RTC's supported years are 2000 through 2099). */
+  int32_t year = 2000 + sDate.Year;
+  int32_t month = sDate.Month;
+  year -= month <= 2;
+  int32_t era = year / 400;
+  int32_t year_of_era = year - era * 400;
+  int32_t day_of_year = (153 * (month + (month > 2 ? -3 : 9)) + 2) / 5
+                        + sDate.Date - 1;
+  int32_t days = era * 146097 + year_of_era * 365 + year_of_era / 4
+                 - year_of_era / 100 + day_of_year - 719468;
+  return (uint32_t)days * 86400U + sTime.Hours * 3600U
+         + sTime.Minutes * 60U + sTime.Seconds;
 }
 
 struct tm* get_local_time(RTC_HandleTypeDef *rtc_ptr, int16_t offset_minutes)
 {
   time_t utc_epoch = get_unix_ts(rtc_ptr);
   time_t local_epoch = utc_epoch + (offset_minutes * 60);
-  return localtime(&local_epoch);
+  return gmtime(&local_epoch);
 }

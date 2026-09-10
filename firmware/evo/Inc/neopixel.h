@@ -35,8 +35,8 @@ typedef struct
 	uint8_t animation_type;
 	uint8_t animation_duration;
 	uint8_t target_color[THREE];
-	double current_color[THREE];
-	double step[THREE];
+	float current_color[THREE];
+	float step[THREE];
 } led_animation;
 
 void spi_fastwrite_buf_size_even(uint8_t *pData, int count);

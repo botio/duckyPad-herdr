@@ -347,7 +347,7 @@ const uint32_t sleep_after_ms_index_to_time_lookup[SLEEP_OPTION_SIZE] = {
 
 void file_access_mode_task(void)
 {
-  while(1)
+  while(is_in_file_access_mode)
   {
     delay_ms(5);
     ssd1306_SetContrast(OLED_CONTRAST_BRIGHT);

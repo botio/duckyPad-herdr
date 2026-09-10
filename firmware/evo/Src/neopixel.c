@@ -169,7 +169,7 @@ void reset_key_color(uint8_t which)
 void led_start_animation(led_animation* anime_struct, uint8_t dest_color[THREE], uint8_t anime_type, uint8_t durations_frames)
 {
   for (int i = 0; i < THREE; ++i)
-    anime_struct->step[i] = (dest_color[i] - anime_struct->current_color[i]) / (double)durations_frames;
+    anime_struct->step[i] = (dest_color[i] - anime_struct->current_color[i]) / (float)durations_frames;
   memcpy(anime_struct->target_color, dest_color, THREE);
   anime_struct->animation_start = frame_counter;
   anime_struct->animation_type = anime_type;

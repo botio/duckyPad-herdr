@@ -25,12 +25,20 @@ uint8_t hid_tx_buf[HID_TX_BUF_SIZE];
 volatile uint8_t needs_gv_save;
 volatile uint8_t is_in_file_access_mode;
 volatile uint8_t herdr_mode = 0;
+#define SD_WALK_STATE_IDLE 0
+#define SD_WALK_STATE_NEW_PROFILE_DIR 1
+#define SD_WALK_STATE_NEW_FILE 2
+#define MAX_FILENAME_LEN_IN_HID_PAYLOAD 45
+uint8_t sd_walk_state;
+uint8_t sd_walk_current_profile_number;
 
 void enter_file_access_mode(void)
 {
   if(is_in_file_access_mode)
     return;
   is_in_file_access_mode = 1;
+  if(herdr_mode)
+    return; // The bridge owns its live display and LEDs.
   neopixel_fill(127, 127, 127);
   oled_say("File Access Mode");
 }
@@ -337,10 +345,35 @@ void parse_hid_msg(uint8_t* this_msg)
   */
   if(command_type == HID_COMMAND_EXIT_FILE_ACCESS)
   {
-    f_close(&sd_file);
-    is_in_file_access_mode = 0;
-    if(!herdr_mode && is_valid_profile_number(current_profile_number))
-      goto_profile(current_profile_number);
+    if(is_in_file_access_mode)
+    {
+      if(is_busy)
+        hid_tx_buf[2] = HID_RESPONSE_BUSY;
+      else if(sd_file.fs != NULL && f_close(&sd_file) != FR_OK)
+        hid_tx_buf[2] = HID_RESPONSE_GENERIC_ERROR;
+      else if(sd_walk_state == SD_WALK_STATE_NEW_FILE && f_closedir(&dir) != FR_OK)
+        hid_tx_buf[2] = HID_RESPONSE_GENERIC_ERROR;
+      else
+      {
+        sd_walk_state = SD_WALK_STATE_IDLE;
+        clear_sw_queue();
+        update_last_keypress();
+        if(!herdr_mode)
+        {
+          if(is_valid_profile_number(current_profile_number))
+          {
+            draw_current_profile();
+            neopixel_redraw_bg();
+          }
+          else
+          {
+            neopixel_off();
+            oled_say("No profiles");
+          }
+        }
+        is_in_file_access_mode = 0;
+      }
+    }
     send_hid_cmd_response(hid_tx_buf);
     return;
   }
@@ -803,12 +836,6 @@ uint8_t find_next_profile(uint8_t current_pf)
   return PROFILE_OVERFLOW;
 }
 
-#define SD_WALK_STATE_IDLE 0
-#define SD_WALK_STATE_NEW_PROFILE_DIR 1
-#define SD_WALK_STATE_NEW_FILE 2
-#define MAX_FILENAME_LEN_IN_HID_PAYLOAD 45
-uint8_t sd_walk_state;
-uint8_t sd_walk_current_profile_number;
 char* sd_walk_current_file_path;
 char* this_file_name;
 uint8_t md5_buf[MD5_BUF_SIZE];
