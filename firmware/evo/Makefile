@@ -22,11 +22,11 @@ INCLUDES := \
 	-IDrivers/CMSIS/Device/ST/STM32F0xx/Include \
 	-IDrivers/CMSIS/Include
 
-CFLAGS := -mcpu=cortex-m0 -mthumb -mfloat-abi=soft -std=c99 -Oz -g3 \
-	-ffunction-sections -fdata-sections -fno-common -flto --specs=nano.specs \
+CFLAGS := -mcpu=cortex-m0 -mthumb -mfloat-abi=soft -std=c99 -Os -g3 \
+	-ffunction-sections -fdata-sections --specs=nano.specs \
 	-DUSE_HAL_DRIVER -DSTM32F072xB $(INCLUDES) \
 	-Wall -Wextra -Wno-unused-parameter
-LDFLAGS := -mcpu=cortex-m0 -mthumb -mfloat-abi=soft -flto -Oz -nostartfiles \
+LDFLAGS := -mcpu=cortex-m0 -mthumb -mfloat-abi=soft -Os -nostartfiles \
 	--specs=nosys.specs --specs=nano.specs \
 	-Wl,-T,gcc/STM32F072xB_FLASH.ld -Wl,-Map,$(MAP) \
 	-Wl,--gc-sections -Wl,--print-memory-usage

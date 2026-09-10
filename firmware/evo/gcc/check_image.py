@@ -17,7 +17,7 @@ def main():
     binary = args.elf.with_suffix(".bin").read_bytes()
     dfu_path = args.dfu or args.elf.with_suffix(".dfu")
     dfu = dfu_path.read_bytes()
-    assert 192 <= len(binary) <= 65536, "Image exceeds the C8's 64 KiB Flash"
+    assert 192 <= len(binary) <= 131072, "Image exceeds the CB's 128 KiB Flash"
     assert struct.unpack_from("<5sBIB", dfu) == (b"DfuSe", 1, len(dfu), 1)
     signature, alt, named, name, target_size, elements = struct.unpack_from("<6sBI255sII", dfu, 11)
     assert signature == b"Target" and alt == 0 and elements == 1
@@ -51,7 +51,7 @@ def main():
             assert 0x08000000 <= (value & ~1) < 0x08000000 + len(binary)
     for symbol in ("USB_IRQHandler", "TIM17_IRQHandler", "EXTI4_15_IRQHandler", "SysTick_Handler"):
         assert symbols[symbol] != symbols["Default_Handler"], f"Unbound interrupt: {symbol}"
-    print(f"PASS DfuSe CRC/payload/address; 48 vectors; Flash {len(binary)}/65536 bytes; "
+    print(f"PASS DfuSe CRC/payload/address; 48 vectors; Flash {len(binary)}/131072 bytes; "
           f"heap {symbols['__heap_end'] - symbols['__heap_start']} bytes; stack 2048 bytes")
     print(f"SHA256 {hashlib.sha256(dfu).hexdigest()}  {dfu_path}")
 
