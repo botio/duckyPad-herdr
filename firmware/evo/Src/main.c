@@ -145,13 +145,16 @@ UART_HandleTypeDef huart1;
   3.1.4
   Conservative GNU build (no LTO) targeting the 128 KiB STM32F072CB
 
+  3.1.5
+  Rebuilt with ARM GNU Toolchain 13.2 to rule out a GCC16/newlib4.6 miscompile
+
 */
 
 uint32_t current_tick;
 
 uint8_t fw_version_major = 3;
 uint8_t fw_version_minor = 1;
-uint8_t fw_version_patch = 4;
+uint8_t fw_version_patch = 5;
 uint8_t dsvm_version = 2;
 
 /* USER CODE END PV */
