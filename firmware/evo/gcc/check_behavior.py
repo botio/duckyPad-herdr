@@ -29,6 +29,7 @@ def main():
     local = block("Src/shared.c", "struct tm* get_local_time(")
     animation = block("Src/neopixel.c", "void led_start_animation(")
     handler = block("Src/neopixel.c", "void led_animation_handler(")
+    fastwrite = block("Src/neopixel.c", "void spi_fastwrite_buf_size_even(")
     color_type = block("Inc/neopixel.h", "typedef struct") + " led_animation;"
     exit_command = block("Src/hid_task.c", "if(command_type == HID_COMMAND_EXIT_FILE_ACCESS)")
     wait_loop = block("Src/keypress_task.c", "void file_access_mode_task(")
@@ -62,6 +63,12 @@ static RTC_DateTypeDef clock_date;
 void HAL_RTC_GetTime(void *p, RTC_TimeTypeDef *t, int f) { *t = clock_time; }
 void HAL_RTC_GetDate(void *p, RTC_DateTypeDef *d, int f) { *d = clock_date; }
 ''' + rtc + '\n' + local + '\n' + color_type + r'''
+typedef struct { uint16_t DR; } SPI_TypeDef;
+static SPI_TypeDef spi_regs;
+static struct { SPI_TypeDef *Instance; } hspi1 = {&spi_regs};
+#define SPI_FLAG_TXE 1
+#define __HAL_SPI_GET_FLAG(handle, flag) 1
+''' + fastwrite + r'''
 static led_animation neo_anime[NEOPIXEL_COUNT];
 static uint32_t frame_counter;
 static uint8_t rendered[3];
@@ -102,6 +109,11 @@ int is_plus_minus_button(int id) { return 0; }
 void NVIC_SystemReset(void) { abort(); }
 ''' + wait_loop + r'''
 int main(void) {
+  union { uint16_t alignment; uint8_t bytes[5]; } odd_storage =
+      {.bytes = {0, 0x12, 0x34, 0x56, 0x78}};
+  spi_fastwrite_buf_size_even(&odd_storage.bytes[1], 4);
+  assert(spi_regs.DR == 0x7856);
+
   /* Compare every supported calendar day to the host UTC oracle, including
      2000's leap day, month/year rollover, and dates after 2038. */
   unsigned days = 0;
@@ -161,13 +173,14 @@ int main(void) {
   exit_file_access(); assert(draws == 1);
   herdr_mode = 1; is_in_file_access_mode = 1;
   exit_file_access(); assert(!is_in_file_access_mode && draws == 1);
-  printf("PASS RTC %u days and offsets; LED 65536 fades max delta %u LSB; file-access busy/error/exit/idempotency/herdr\n", days, max_delta);
+  printf("PASS unaligned SPI words; RTC %u days and offsets; LED 65536 fades max delta %u LSB; file-access busy/error/exit/idempotency/herdr\n", days, max_delta);
 }
 '''
     with tempfile.TemporaryDirectory(prefix="duckypad-check-") as tmp:
         path = Path(tmp)
         (path / "check.c").write_text(source)
         subprocess.run([os.environ.get("HOST_CC", "cc"), "-std=c99", "-O2",
+                        "-fsanitize=alignment", "-fno-sanitize-recover=alignment",
                         str(path / "check.c"), "-o", str(path / "check")], check=True)
         subprocess.run([str(path / "check")], check=True)
 

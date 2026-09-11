@@ -17,7 +17,8 @@ void spi_fastwrite_buf_size_even(uint8_t *pData, int count)
   {
     while(!__HAL_SPI_GET_FLAG(&hspi1, SPI_FLAG_TXE))
       ;
-    hspi1.Instance->DR = *((uint16_t *)pData);
+    uint16_t word = (uint16_t)pData[0] | ((uint16_t)pData[1] << 8);
+    hspi1.Instance->DR = word;
     pData += sizeof(uint16_t);
     count -= 2;
   }
@@ -34,7 +35,7 @@ void neopixel_show(uint8_t* red, uint8_t* green, uint8_t* blue, uint8_t brightne
   // 16-bit mode for both bytes to transmit. The SD card shares SPI1 but needs
   // 8-bit, so restore 16-bit only if the mode has been changed (i.e. after an
   // SD access) -- avoids a per-frame re-init.
-  if ((hspi1.Instance->CR1 & 0x00000F00) != SPI_DATASIZE_16BIT)
+  if ((hspi1.Instance->CR2 & SPI_CR2_DS) != SPI_DATASIZE_16BIT)
   {
     hspi1.Init.DataSize = SPI_DATASIZE_16BIT;
     hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
