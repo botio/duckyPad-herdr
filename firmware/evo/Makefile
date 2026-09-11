@@ -1,9 +1,13 @@
 # Reproducibility baseline: ARM GNU Toolchain 13.2.rel1
-# (GCC 13.2.1 / bundled newlib).
-TOOLCHAIN := arm-none-eabi
+# (GCC 13.2.1 / bundled newlib). Override TOOLCHAIN only with the same version.
+TOOLCHAIN ?= $(HOME)/.local/arm-gnu/bin/arm-none-eabi
 CC := $(TOOLCHAIN)-gcc
 OBJCOPY := $(TOOLCHAIN)-objcopy
 SIZE := $(TOOLCHAIN)-size
+CC_VERSION := $(shell $(CC) -dumpfullversion 2>/dev/null)
+ifneq ($(CC_VERSION),13.2.1)
+$(error ARM GNU Toolchain 13.2.1 required; got "$(CC_VERSION)" from $(CC))
+endif
 DFUSE_PACK ?= dfuse-pack
 
 BUILD ?= build
