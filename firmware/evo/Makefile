@@ -1,5 +1,5 @@
-# Known-good: ARM GNU Toolchain 13.2.rel1 (GCC 13.2.1 / newlib 4.3).
-# GCC 16.2.0 + newlib 4.6.0 miscompiled this Cortex-M0 HAL and bricked the OLED.
+# Reproducibility baseline: ARM GNU Toolchain 13.2.rel1
+# (GCC 13.2.1 / bundled newlib).
 TOOLCHAIN := arm-none-eabi
 CC := $(TOOLCHAIN)-gcc
 OBJCOPY := $(TOOLCHAIN)-objcopy

@@ -11,52 +11,39 @@
 .type Reset_Handler, %function
 .thumb_func
 Reset_Handler:
-  ldr r0, =_estack
-  mov sp, r0
+  push {r4, lr}
   bl SystemInit
 
   ldr r0, =_sdata
-  ldr r1, =_edata
-  ldr r2, =_sidata
-.Lcopy_data:
-  cmp r0, r1
-  bcc .Lcopy_data_word
-  b .Lzero_bss_setup
-.Lcopy_data_word:
-  ldr r3, [r2]
-  str r3, [r0]
-  adds r0, #4
-  adds r2, #4
-  b .Lcopy_data
+  ldr r3, =_edata
+  cmp r0, r3
+  bcs .Lzero_bss
+  subs r3, #1
+  subs r2, r3, r0
+  lsrs r2, r2, #2
+  adds r2, #1
+  ldr r1, =_sidata
+  lsls r2, r2, #2
+  bl memcpy
 
-.Lzero_bss_setup:
-  ldr r0, =_sbss
-  ldr r1, =_ebss
-  movs r2, #0
 .Lzero_bss:
-  cmp r0, r1
-  bcc .Lzero_bss_word
-  b .Lrun_main
-.Lzero_bss_word:
-  str r2, [r0]
-  adds r0, #4
-  b .Lzero_bss
+  ldr r0, =_sbss
+  ldr r3, =_ebss
+  cmp r0, r3
+  bcs .Lrun_main
+  subs r3, #1
+  subs r2, r3, r0
+  lsrs r2, r2, #2
+  adds r2, #1
+  movs r1, #0
+  lsls r2, r2, #2
+  bl memset
 
 .Lrun_main:
-  bl __libc_init_array
   bl main
 .Lhang:
   b .Lhang
 .size Reset_Handler, . - Reset_Handler
-
-/* No CRT init/fini fragments: constructors are dispatched by libc above. */
-.section .text._init,"ax",%progbits
-.global _init
-.type _init, %function
-.thumb_func
-_init:
-  bx lr
-.size _init, . - _init
 
 .section .isr_vector,"a",%progbits
 .type g_pfnVectors, %object
