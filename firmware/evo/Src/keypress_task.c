@@ -349,6 +349,7 @@ void file_access_mode_task(void)
 {
   while(is_in_file_access_mode)
   {
+    hid_command_task();
     delay_ms(5);
     ssd1306_SetContrast(OLED_CONTRAST_BRIGHT);
     switch_event_t sw_event = {0};
@@ -363,6 +364,7 @@ void keypress_task(void)
 {
   while(1)
   {
+    hid_command_task();
     herdr_key_task();
     delay_ms(herdr_mode ? 1 : 5);
     if(herdr_mode)

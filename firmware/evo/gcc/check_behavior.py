@@ -33,6 +33,9 @@ def main():
     show = block("Src/neopixel.c", "void neopixel_show(")
     color_type = block("Inc/neopixel.h", "typedef struct") + " led_animation;"
     exit_command = block("Src/hid_task.c", "if(command_type == HID_COMMAND_EXIT_FILE_ACCESS)")
+    storage_predicate = block("Src/hid_task.c", "static uint8_t is_storage_hid_command(")
+    report_receiver = block("Src/hid_task.c", "void receive_hid_report(")
+    command_task = block("Src/hid_task.c", "void hid_command_task(")
     wait_loop = block("Src/keypress_task.c", "void file_access_mode_task(")
     source = r'''
 #define _GNU_SOURCE
@@ -60,6 +63,17 @@ def main():
 #define SD_WALK_STATE_IDLE 0
 #define SD_WALK_STATE_NEW_FILE 2
 #define FR_OK 0
+#define HID_USAGE_ID_NAMED_PIPE 4
+#define DP_HID_MSG_SIZE 64
+#define HID_COMMAND_READ_FILE 11
+#define HID_COMMAND_OPEN_FILE_FOR_WRITING 14
+#define HID_COMMAND_WRITE_FILE 15
+#define HID_COMMAND_CLOSE_FILE 16
+#define HID_COMMAND_DELETE_FILE 17
+#define HID_COMMAND_CREATE_DIR 18
+#define HID_COMMAND_DELETE_DIR 19
+#define HID_COMMAND_DUMP_SD 32
+#define HID_COMMAND_OPEN_FILE_FOR_READING 33
 typedef int RTC_HandleTypeDef;
 typedef struct { uint8_t Hours, Minutes, Seconds; } RTC_TimeTypeDef;
 typedef struct { uint8_t Year, Month, Date; } RTC_DateTypeDef;
@@ -90,6 +104,16 @@ static uint8_t blue_after_brightness[NEOPIXEL_COUNT];
 #define __HAL_SPI_GET_FLAG(handle, flag) 1
 #define __disable_irq()
 #define __enable_irq()
+static uint8_t queued_hid_msg[DP_HID_MSG_SIZE];
+static volatile uint8_t queued_hid_msg_pending;
+static int is_busy;
+static int handled_hid_commands;
+static uint8_t handled_hid_msg[DP_HID_MSG_SIZE];
+static void handle_hid_command(uint8_t *hid_msg) {
+  ++handled_hid_commands;
+  memcpy(handled_hid_msg, hid_msg, DP_HID_MSG_SIZE);
+}
+''' + storage_predicate + '\n' + report_receiver + '\n' + command_task + r'''
 int HAL_SPI_Init(SPI_HandleTypeDef *handle) {
   ++spi_init_calls;
   handle->Instance->CR2 = (handle->Instance->CR2 & ~SPI_CR2_DS) | handle->Init.DataSize;
@@ -116,7 +140,7 @@ static struct { int brightness_index; } dp_settings;
 
 ''' + animation + '\n' + handler + r'''
 static volatile uint8_t is_in_file_access_mode;
-static int is_busy, herdr_mode, sd_walk_state, current_profile_number;
+static int herdr_mode, sd_walk_state, current_profile_number;
 static struct { void *fs; } sd_file;
 static int dir, close_result, dir_result, closes, draws, sends, delays;
 static uint8_t hid_tx_buf[64];
@@ -144,6 +168,23 @@ int is_plus_minus_button(int id) { return 0; }
 void NVIC_SystemReset(void) { abort(); }
 ''' + wait_loop + r'''
 int main(void) {
+  uint8_t immediate_msg[DP_HID_MSG_SIZE] = {HID_USAGE_ID_NAMED_PIPE, 0, 0};
+  receive_hid_report(immediate_msg);
+  assert(handled_hid_commands == 1);
+  uint8_t storage_msg[DP_HID_MSG_SIZE] = {HID_USAGE_ID_NAMED_PIPE, 0, HID_COMMAND_OPEN_FILE_FOR_READING, '/', 'x'};
+  receive_hid_report(storage_msg);
+  storage_msg[4] = 'y';
+  assert(handled_hid_commands == 1);
+  hid_command_task();
+  assert(handled_hid_commands == 2 && handled_hid_msg[4] == 'x');
+  hid_command_task();
+  assert(handled_hid_commands == 2);
+  is_busy = 1;
+  receive_hid_report(storage_msg);
+  assert(handled_hid_commands == 3);
+  is_busy = 0;
+  hid_command_task();
+  assert(handled_hid_commands == 3);
   union { uint16_t alignment; uint8_t bytes[5]; } odd_storage =
       {.bytes = {0, 0x12, 0x34, 0x56, 0x78}};
   spi_fastwrite_buf_size_even(&odd_storage.bytes[1], 4);
@@ -212,7 +253,7 @@ int main(void) {
   exit_file_access(); assert(draws == 1);
   herdr_mode = 1; is_in_file_access_mode = 1;
   exit_file_access(); assert(!is_in_file_access_mode && draws == 1);
-  printf("PASS aligned SPI transfer units; unaligned SPI words; RTC %u days and offsets; LED 65536 fades max delta %u LSB; file-access busy/error/exit/idempotency/herdr\n", days, max_delta);
+  printf("PASS deferred storage HID dispatch; aligned SPI transfer units; unaligned SPI words; RTC %u days and offsets; LED 65536 fades max delta %u LSB; file-access busy/error/exit/idempotency/herdr\n", days, max_delta);
 }
 '''
     with tempfile.TemporaryDirectory(prefix="duckypad-check-") as tmp:

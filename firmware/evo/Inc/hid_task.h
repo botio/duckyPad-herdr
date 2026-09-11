@@ -58,7 +58,8 @@
 #define HID_READ_FILE_PATH_SIZE_MAX 55
 #define HID_FILE_READ_PAYLOAD_SIZE 61
 
-void handle_hid_command(uint8_t* hid_rx_buf);
+void receive_hid_report(const uint8_t* hid_msg);
+void hid_command_task(void);
 void herdr_key_task(void);
 void sd_walk(uint8_t* res_buf);
 void md5_test(void);

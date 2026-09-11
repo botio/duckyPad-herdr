@@ -157,13 +157,16 @@ UART_HandleTypeDef huart1;
   3.1.8
   Aligned NeoPixel HAL buffers and fixed the 16-bit SPI transfer count
 
+  3.1.9
+  Deferred SD-card HID commands outside USB callbacks to prevent macOS write timeouts
+
 */
 
 uint32_t current_tick;
 
 uint8_t fw_version_major = 3;
 uint8_t fw_version_minor = 1;
-uint8_t fw_version_patch = 8;
+uint8_t fw_version_patch = 9;
 uint8_t dsvm_version = 2;
 
 /* USER CODE END PV */

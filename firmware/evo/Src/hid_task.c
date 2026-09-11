@@ -31,6 +31,10 @@ volatile uint8_t herdr_mode = 0;
 #define MAX_FILENAME_LEN_IN_HID_PAYLOAD 45
 uint8_t sd_walk_state;
 uint8_t sd_walk_current_profile_number;
+// FatFs work must not run inside the USB callback: macOS waits for that
+// callback to return before IOHIDDeviceSetReport completes.
+static uint8_t queued_hid_msg[DP_HID_MSG_SIZE];
+static volatile uint8_t queued_hid_msg_pending;
 
 void enter_file_access_mode(void)
 {
@@ -808,14 +812,61 @@ void parse_hid_msg(uint8_t* this_msg)
   }
 }
 
-void handle_hid_command(uint8_t* hid_msg)
+static void handle_hid_command(uint8_t* hid_msg)
 {
   uint32_t ke_start = millis();
-  if(hid_msg[0] == 1) // LED
+  if(hid_msg[0] == HID_USAGE_ID_KEYBOARD)
     kb_led_status = hid_msg[1];
-  else if(hid_msg[0] == 5) // PC data
+  else if(hid_msg[0] == HID_USAGE_ID_NAMED_PIPE)
     parse_hid_msg(hid_msg);
   // printf("HID %ldms\n", millis() - ke_start);
+}
+
+static uint8_t is_storage_hid_command(uint8_t command)
+{
+  switch(command)
+  {
+    case HID_COMMAND_READ_FILE:
+    case HID_COMMAND_OPEN_FILE_FOR_WRITING:
+    case HID_COMMAND_WRITE_FILE:
+    case HID_COMMAND_CLOSE_FILE:
+    case HID_COMMAND_DELETE_FILE:
+    case HID_COMMAND_CREATE_DIR:
+    case HID_COMMAND_DELETE_DIR:
+    case HID_COMMAND_DUMP_SD:
+    case HID_COMMAND_OPEN_FILE_FOR_READING:
+    case HID_COMMAND_EXIT_FILE_ACCESS:
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+void receive_hid_report(const uint8_t* hid_msg)
+{
+  if(hid_msg[0] != HID_USAGE_ID_NAMED_PIPE || is_busy || !is_storage_hid_command(hid_msg[2]))
+  {
+    handle_hid_command((uint8_t*)hid_msg);
+    return;
+  }
+
+  if(queued_hid_msg_pending)
+    return;
+  memcpy(queued_hid_msg, hid_msg, DP_HID_MSG_SIZE);
+  queued_hid_msg_pending = 1;
+}
+
+void hid_command_task(void)
+{
+  uint8_t hid_msg[DP_HID_MSG_SIZE];
+  if(!queued_hid_msg_pending)
+    return;
+
+  __disable_irq();
+  memcpy(hid_msg, queued_hid_msg, DP_HID_MSG_SIZE);
+  queued_hid_msg_pending = 0;
+  __enable_irq();
+  handle_hid_command(hid_msg);
 }
 
 #define PROFILE_OVERFLOW 255

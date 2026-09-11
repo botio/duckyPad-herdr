@@ -48,6 +48,7 @@ void idle_loop(void)
 {
   while(1)
   {
+    hid_command_task();
     herdr_key_task();
     delay_ms(1);
   }
