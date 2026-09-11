@@ -8,8 +8,8 @@
 #include "profiles.h"
 #include "sd_util.h"
 
-uint8_t ws_padding_buf[NEOPIXEL_PADDING_BUF_SIZE];
-uint8_t ws_spi_buf[WS_SPI_BUF_SIZE];
+uint8_t ws_padding_buf[NEOPIXEL_PADDING_BUF_SIZE] __attribute__((aligned(4)));
+uint8_t ws_spi_buf[WS_SPI_BUF_SIZE] __attribute__((aligned(4)));
 
 void spi_fastwrite_buf_size_even(uint8_t *pData, int count)
 {
@@ -49,7 +49,8 @@ void neopixel_show(uint8_t* red, uint8_t* green, uint8_t* blue, uint8_t brightne
     blue_after_brightness[i] = (float)blue[i] * brightness_percent;
   }
 
-  HAL_SPI_Transmit(&hspi1, ws_padding_buf, NEOPIXEL_PADDING_BUF_SIZE, 5);
+  HAL_SPI_Transmit(&hspi1, ws_padding_buf,
+                   NEOPIXEL_PADDING_BUF_SIZE / sizeof(uint16_t), 5);
   for (int i = 0; i < NEOPIXEL_COUNT; ++i)
   {
     memset(ws_spi_buf, 0, WS_SPI_BUF_SIZE);

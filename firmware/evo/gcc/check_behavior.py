@@ -30,6 +30,7 @@ def main():
     animation = block("Src/neopixel.c", "void led_start_animation(")
     handler = block("Src/neopixel.c", "void led_animation_handler(")
     fastwrite = block("Src/neopixel.c", "void spi_fastwrite_buf_size_even(")
+    show = block("Src/neopixel.c", "void neopixel_show(")
     color_type = block("Inc/neopixel.h", "typedef struct") + " led_animation;"
     exit_command = block("Src/hid_task.c", "if(command_type == HID_COMMAND_EXIT_FILE_ACCESS)")
     wait_loop = block("Src/keypress_task.c", "void file_access_mode_task(")
@@ -44,6 +45,10 @@ def main():
 #include <time.h>
 #define THREE 3
 #define NEOPIXEL_COUNT 1
+#define NEOPIXEL_PADDING_BUF_SIZE 4
+#define WS_SPI_BUF_SIZE 24
+#define WS_BIT_0 0xc0
+#define WS_BIT_1 0xf8
 #define ANIMATION_NONE 0
 #define ANIMATION_CROSS_FADE 1
 #define RTC_FORMAT_BIN 0
@@ -63,12 +68,42 @@ static RTC_DateTypeDef clock_date;
 void HAL_RTC_GetTime(void *p, RTC_TimeTypeDef *t, int f) { *t = clock_time; }
 void HAL_RTC_GetDate(void *p, RTC_DateTypeDef *d, int f) { *d = clock_date; }
 ''' + rtc + '\n' + local + '\n' + color_type + r'''
-typedef struct { uint16_t DR; } SPI_TypeDef;
+typedef struct { uint32_t CR2, DR; } SPI_TypeDef;
+typedef struct { uint32_t DataSize, BaudRatePrescaler; } SPI_InitTypeDef;
+typedef struct { SPI_TypeDef *Instance; SPI_InitTypeDef Init; } SPI_HandleTypeDef;
 static SPI_TypeDef spi_regs;
-static struct { SPI_TypeDef *Instance; } hspi1 = {&spi_regs};
+static SPI_HandleTypeDef hspi1 = {&spi_regs, {0, 0}};
+static int spi_init_calls, spi_transmit_calls;
+static uint8_t ws_padding_buf[NEOPIXEL_PADDING_BUF_SIZE] __attribute__((aligned(2)));
+static uint8_t ws_spi_buf[WS_SPI_BUF_SIZE] __attribute__((aligned(2)));
+static uint8_t red_after_brightness[NEOPIXEL_COUNT];
+static uint8_t green_after_brightness[NEOPIXEL_COUNT];
+static uint8_t blue_after_brightness[NEOPIXEL_COUNT];
 #define SPI_FLAG_TXE 1
+#define SPI_CR2_DS 0xf00
+#define SPI_DATASIZE_16BIT 0xf00
+#define SPI_BAUDRATEPRESCALER_4 0
+#define GPIO_PIN_SET 1
+#define GPIO_PIN_RESET 0
+#define LED_DATA_EN_GPIO_Port NULL
+#define LED_DATA_EN_Pin 0
 #define __HAL_SPI_GET_FLAG(handle, flag) 1
-''' + fastwrite + r'''
+#define __disable_irq()
+#define __enable_irq()
+int HAL_SPI_Init(SPI_HandleTypeDef *handle) {
+  ++spi_init_calls;
+  handle->Instance->CR2 = (handle->Instance->CR2 & ~SPI_CR2_DS) | handle->Init.DataSize;
+  return 0;
+}
+int HAL_SPI_Transmit(SPI_HandleTypeDef *handle, uint8_t *data, uint16_t size, uint32_t timeout) {
+  assert(handle == &hspi1 && data == ws_padding_buf);
+  assert(((uintptr_t)data & 1) == 0);
+  assert(size == NEOPIXEL_PADDING_BUF_SIZE / sizeof(uint16_t));
+  ++spi_transmit_calls;
+  return 0;
+}
+void HAL_GPIO_WritePin(void *port, uint16_t pin, int state) {}
+''' + fastwrite + '\n' + show + r'''
 static led_animation neo_anime[NEOPIXEL_COUNT];
 static uint32_t frame_counter;
 static uint8_t rendered[3];
@@ -78,7 +113,7 @@ void neopixel_draw_current_buffer(void) {}
 static uint8_t red_buf[1], green_buf[1], blue_buf[1];
 static const uint8_t brightness_index_to_percent_lookup[1] = {100};
 static struct { int brightness_index; } dp_settings;
-void neopixel_show(void *r, void *g, void *b, int brightness) {}
+
 ''' + animation + '\n' + handler + r'''
 static volatile uint8_t is_in_file_access_mode;
 static int is_busy, herdr_mode, sd_walk_state, current_profile_number;
@@ -113,6 +148,10 @@ int main(void) {
       {.bytes = {0, 0x12, 0x34, 0x56, 0x78}};
   spi_fastwrite_buf_size_even(&odd_storage.bytes[1], 4);
   assert(spi_regs.DR == 0x7856);
+  uint8_t pixel[NEOPIXEL_COUNT] = {0};
+  neopixel_show(pixel, pixel, pixel, 100);
+  assert(spi_init_calls == 1 && spi_transmit_calls == 1);
+
 
   /* Compare every supported calendar day to the host UTC oracle, including
      2000's leap day, month/year rollover, and dates after 2038. */
@@ -173,7 +212,7 @@ int main(void) {
   exit_file_access(); assert(draws == 1);
   herdr_mode = 1; is_in_file_access_mode = 1;
   exit_file_access(); assert(!is_in_file_access_mode && draws == 1);
-  printf("PASS unaligned SPI words; RTC %u days and offsets; LED 65536 fades max delta %u LSB; file-access busy/error/exit/idempotency/herdr\n", days, max_delta);
+  printf("PASS aligned SPI transfer units; unaligned SPI words; RTC %u days and offsets; LED 65536 fades max delta %u LSB; file-access busy/error/exit/idempotency/herdr\n", days, max_delta);
 }
 '''
     with tempfile.TemporaryDirectory(prefix="duckypad-check-") as tmp:

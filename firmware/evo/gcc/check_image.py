@@ -36,6 +36,8 @@ def main():
     assert symbols["__heap_start"] >= symbols["_ebss"]
     assert symbols["__heap_end"] == symbols["_estack"] - 2048
     assert symbols["__heap_end"] - symbols["__heap_start"] >= 1024
+    for symbol in ("ws_spi_buf", "ws_padding_buf"):
+        assert symbols[symbol] % 2 == 0, f"{symbol} must be halfword-aligned for 16-bit HAL SPI"
     # Check all vectors against the vendor's existing Keil startup, not a
     # second manually transcribed table in this verification program.
     startup = (Path(__file__).resolve().parents[1] / "MDK-ARM/startup_stm32f072xb.s").read_text()
