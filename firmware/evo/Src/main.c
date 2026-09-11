@@ -163,13 +163,16 @@ UART_HandleTypeDef huart1;
   3.1.10
   Rebuilt the deferred HID fix with the pinned ARM GNU 13.2 toolchain
 
+  3.1.11
+  Fixed PC-command report ID (5, not 4) and full-size deferral queue
+
 */
 
 uint32_t current_tick;
 
 uint8_t fw_version_major = 3;
 uint8_t fw_version_minor = 1;
-uint8_t fw_version_patch = 10;
+uint8_t fw_version_patch = 11;
 uint8_t dsvm_version = 2;
 
 /* USER CODE END PV */

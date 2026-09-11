@@ -63,8 +63,8 @@ def main():
 #define SD_WALK_STATE_IDLE 0
 #define SD_WALK_STATE_NEW_FILE 2
 #define FR_OK 0
-#define HID_USAGE_ID_NAMED_PIPE 4
-#define DP_HID_MSG_SIZE 64
+#define HID_USAGE_ID_PC_DATA 5
+#define USBD_CUSTOMHID_OUTREPORT_BUF_SIZE 63
 #define HID_COMMAND_READ_FILE 11
 #define HID_COMMAND_OPEN_FILE_FOR_WRITING 14
 #define HID_COMMAND_WRITE_FILE 15
@@ -104,14 +104,14 @@ static uint8_t blue_after_brightness[NEOPIXEL_COUNT];
 #define __HAL_SPI_GET_FLAG(handle, flag) 1
 #define __disable_irq()
 #define __enable_irq()
-static uint8_t queued_hid_msg[DP_HID_MSG_SIZE];
+static uint8_t queued_hid_msg[USBD_CUSTOMHID_OUTREPORT_BUF_SIZE];
 static volatile uint8_t queued_hid_msg_pending;
 static int is_busy;
 static int handled_hid_commands;
-static uint8_t handled_hid_msg[DP_HID_MSG_SIZE];
+static uint8_t handled_hid_msg[USBD_CUSTOMHID_OUTREPORT_BUF_SIZE];
 static void handle_hid_command(uint8_t *hid_msg) {
   ++handled_hid_commands;
-  memcpy(handled_hid_msg, hid_msg, DP_HID_MSG_SIZE);
+  memcpy(handled_hid_msg, hid_msg, USBD_CUSTOMHID_OUTREPORT_BUF_SIZE);
 }
 ''' + storage_predicate + '\n' + report_receiver + '\n' + command_task + r'''
 int HAL_SPI_Init(SPI_HandleTypeDef *handle) {
@@ -168,10 +168,10 @@ int is_plus_minus_button(int id) { return 0; }
 void NVIC_SystemReset(void) { abort(); }
 ''' + wait_loop + r'''
 int main(void) {
-  uint8_t immediate_msg[DP_HID_MSG_SIZE] = {HID_USAGE_ID_NAMED_PIPE, 0, 0};
+  uint8_t immediate_msg[USBD_CUSTOMHID_OUTREPORT_BUF_SIZE] = {HID_USAGE_ID_PC_DATA, 0, 0};
   receive_hid_report(immediate_msg);
   assert(handled_hid_commands == 1);
-  uint8_t storage_msg[DP_HID_MSG_SIZE] = {HID_USAGE_ID_NAMED_PIPE, 0, HID_COMMAND_OPEN_FILE_FOR_READING, '/', 'x'};
+  uint8_t storage_msg[USBD_CUSTOMHID_OUTREPORT_BUF_SIZE] = {HID_USAGE_ID_PC_DATA, 0, HID_COMMAND_OPEN_FILE_FOR_READING, '/', 'x'};
   receive_hid_report(storage_msg);
   storage_msg[4] = 'y';
   assert(handled_hid_commands == 1);

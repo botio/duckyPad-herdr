@@ -33,7 +33,7 @@ uint8_t sd_walk_state;
 uint8_t sd_walk_current_profile_number;
 // FatFs work must not run inside the USB callback: macOS waits for that
 // callback to return before IOHIDDeviceSetReport completes.
-static uint8_t queued_hid_msg[DP_HID_MSG_SIZE];
+static uint8_t queued_hid_msg[USBD_CUSTOMHID_OUTREPORT_BUF_SIZE];
 static volatile uint8_t queued_hid_msg_pending;
 
 void enter_file_access_mode(void)
@@ -817,7 +817,7 @@ static void handle_hid_command(uint8_t* hid_msg)
   uint32_t ke_start = millis();
   if(hid_msg[0] == HID_USAGE_ID_KEYBOARD)
     kb_led_status = hid_msg[1];
-  else if(hid_msg[0] == HID_USAGE_ID_NAMED_PIPE)
+  else if(hid_msg[0] == HID_USAGE_ID_PC_DATA)
     parse_hid_msg(hid_msg);
   // printf("HID %ldms\n", millis() - ke_start);
 }
@@ -844,7 +844,7 @@ static uint8_t is_storage_hid_command(uint8_t command)
 
 void receive_hid_report(const uint8_t* hid_msg)
 {
-  if(hid_msg[0] != HID_USAGE_ID_NAMED_PIPE || is_busy || !is_storage_hid_command(hid_msg[2]))
+  if(hid_msg[0] != HID_USAGE_ID_PC_DATA || is_busy || !is_storage_hid_command(hid_msg[2]))
   {
     handle_hid_command((uint8_t*)hid_msg);
     return;
@@ -852,18 +852,18 @@ void receive_hid_report(const uint8_t* hid_msg)
 
   if(queued_hid_msg_pending)
     return;
-  memcpy(queued_hid_msg, hid_msg, DP_HID_MSG_SIZE);
+  memcpy(queued_hid_msg, hid_msg, USBD_CUSTOMHID_OUTREPORT_BUF_SIZE);
   queued_hid_msg_pending = 1;
 }
 
 void hid_command_task(void)
 {
-  uint8_t hid_msg[DP_HID_MSG_SIZE];
+  uint8_t hid_msg[USBD_CUSTOMHID_OUTREPORT_BUF_SIZE];
   if(!queued_hid_msg_pending)
     return;
 
   __disable_irq();
-  memcpy(hid_msg, queued_hid_msg, DP_HID_MSG_SIZE);
+  memcpy(hid_msg, queued_hid_msg, USBD_CUSTOMHID_OUTREPORT_BUF_SIZE);
   queued_hid_msg_pending = 0;
   __enable_irq();
   handle_hid_command(hid_msg);

@@ -54,6 +54,8 @@
 #define HID_USAGE_ID_MEDIA_KEY 2
 #define HID_USAGE_ID_MOUSE 3
 #define HID_USAGE_ID_NAMED_PIPE 4
+// PC -> duckyPad command report (report ID 5 on the OUT endpoint).
+#define HID_USAGE_ID_PC_DATA 5
 
 #define HID_READ_FILE_PATH_SIZE_MAX 55
 #define HID_FILE_READ_PAYLOAD_SIZE 61
