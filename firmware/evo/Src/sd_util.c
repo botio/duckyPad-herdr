@@ -688,6 +688,10 @@ static int sd_readsector(hwif *hw, u32 address, u8 *buf)
 {
   int r;
 
+  // NeoPixel shares SPI1 and leaves it in 16-bit mode; restore 8-bit for SD.
+  if ((hspi1.Instance->CR2 & SPI_CR2_DS) != SPI_DATASIZE_8BIT)
+    spi_set_speed(SD_SPEED_25MHZ);
+
   spi_cs_low();
   if (hw->capabilities & CAP_SDHC)
     sd_cmd(17, address); /* read single block */
@@ -725,6 +729,10 @@ static int sd_readsector(hwif *hw, u32 address, u8 *buf)
 static int sd_writesector(hwif *hw, u32 address, const u8 *buf)
 {
   int r;
+
+  // NeoPixel leaves SPI1 in 16-bit mode; restore 8-bit for SD.
+  if ((hspi1.Instance->CR2 & SPI_CR2_DS) != SPI_DATASIZE_8BIT)
+    spi_set_speed(SD_SPEED_25MHZ);
 
   spi_cs_low();
   if (hw->capabilities & CAP_SDHC)

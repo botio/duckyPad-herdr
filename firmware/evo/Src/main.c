@@ -172,13 +172,16 @@ UART_HandleTypeDef huart1;
   3.1.13
   OLED mirror diagnostic: show file path and cumulative read count
 
+  3.1.14
+  Restore 8-bit SPI for SD after NeoPixel switches it to 16-bit
+
 */
 
 uint32_t current_tick;
 
 uint8_t fw_version_major = 3;
 uint8_t fw_version_minor = 1;
-uint8_t fw_version_patch = 13;
+uint8_t fw_version_patch = 14;
 uint8_t dsvm_version = 2;
 
 /* USER CODE END PV */
