@@ -169,13 +169,16 @@ UART_HandleTypeDef huart1;
   3.1.12
   Sized the OUT report buffer to 64 bytes (report ID + 63 data)
 
+  3.1.13
+  OLED mirror diagnostic: show file path and cumulative read count
+
 */
 
 uint32_t current_tick;
 
 uint8_t fw_version_major = 3;
 uint8_t fw_version_minor = 1;
-uint8_t fw_version_patch = 12;
+uint8_t fw_version_patch = 13;
 uint8_t dsvm_version = 2;
 
 /* USER CODE END PV */

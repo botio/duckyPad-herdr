@@ -35,6 +35,8 @@ uint8_t sd_walk_current_profile_number;
 // callback to return before IOHIDDeviceSetReport completes.
 static uint8_t queued_hid_msg[USBD_CUSTOMHID_OUTREPORT_BUF_SIZE];
 static volatile uint8_t queued_hid_msg_pending;
+// Mirror diagnostic: cumulative READ_FILE count, shown on the OLED.
+static uint32_t hid_read_progress;
 
 void enter_file_access_mode(void)
 {
@@ -647,7 +649,7 @@ void parse_hid_msg(uint8_t* this_msg)
     enter_file_access_mode();
     CLEAR_TEMP_BUF();
     strncpy(temp_buf, this_msg+3, HID_READ_FILE_PATH_SIZE_MAX);
-    // printf("%s\n", temp_buf);
+    oled_say(temp_buf); // diagnostic: show which file is being opened
     f_close(&sd_file);
     hid_tx_buf[2] = f_open(&sd_file, temp_buf, FA_READ);
     send_hid_cmd_response(hid_tx_buf);
@@ -667,6 +669,12 @@ void parse_hid_msg(uint8_t* this_msg)
   else if(command_type == HID_COMMAND_READ_FILE)
   {
     enter_file_access_mode();
+    hid_read_progress++;
+    {
+      char dbg[24];
+      snprintf(dbg, sizeof(dbg), "read #%lu", (unsigned long)hid_read_progress);
+      oled_say(dbg); // diagnostic: cumulative READ_FILE progress
+    }
     hid_tx_buf[1] = f_read(&sd_file, hid_tx_buf+3, HID_FILE_READ_PAYLOAD_SIZE, &bytes_read);
     hid_tx_buf[2] = (uint8_t)bytes_read;
     if(bytes_read == 0)
