@@ -199,16 +199,15 @@ impl DuckyPad {
         self.write_cmd(CMD_OLED, &p)
     }
 
-    /// cmd 36: enter (1) or leave (0) herdr mode.
+    /// cmd 36: advertise bridge availability. Firmware 3.1.15+ requires the
+    /// user to select a Herdr profile before accepting RGB/OLED or agent keys.
     pub fn set_herdr_mode(&mut self, on: bool) -> Result<()> {
         self.write_cmd(CMD_MODE, &[if on { 1 } else { 0 }])
     }
 
-    /// Ask the pad for a synchronous snapshot of all switch states, then
-    /// compare it with the previous snapshot to emit press edges. This
-    /// survives a busy IN endpoint (an unsolicited event could be dropped
-    /// when the previous response is still pending) and works against a
-    /// herdr-mode pad that no longer emits keyboard reports.
+    /// Ask for a snapshot of agent-key states and emit press edges. Firmware
+    /// 3.1.15+ returns zero outside a Herdr profile and leaves polls unanswered
+    /// during SD file access so key replies cannot interleave storage data.
     pub fn read_key_event(&mut self) -> Result<Option<u8>> {
         if self.dry_run || self.dev.is_none() {
             return Ok(None);

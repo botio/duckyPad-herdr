@@ -84,9 +84,9 @@ impl Daemon {
         }
     }
 
-    /// Push the computed RGB frame + OLED text. Normal polls send only changed
-    /// values; reconnect/heartbeat calls force a full replay because a reset
-    /// clears the pad's RAM even though the herdr agent list did not change.
+    /// Push RGB + OLED. Heartbeats replay unchanged state so entering a Herdr
+    /// profile or reconnecting the pad does not require an agent-state change.
+    /// Firmware 3.1.15+ ignores this display data in ordinary macro profiles.
     fn push_pad_state(&mut self, force: bool) {
         if force {
             if let Err(e) = self.pad.set_herdr_mode(true) {
@@ -227,8 +227,8 @@ fn run() -> Result<()> {
     let client = HerdrClient::new(socket_path());
     let mut d = Daemon::new(pad, client);
 
-    // Enter herdr mode so the pad suppresses keyboard reports and treats the
-    // keys as agent-focus inputs. A failure here shouldn't kill the daemon.
+    // Advertise availability; selecting the Herdr profile is a local action.
+    // A failure here should not kill the daemon.
     if let Err(e) = d.pad.set_herdr_mode(true) {
         log::warn!("set_herdr_mode: {e:#}");
     }

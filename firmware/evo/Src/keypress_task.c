@@ -248,8 +248,6 @@ void onboard_offboard_switch_release(uint8_t swid, char* release_path)
 void process_keyevent(uint8_t swid, uint8_t event_type)
 {
   ssd1306_SetContrast(OLED_CONTRAST_BRIGHT);
-  if(herdr_mode)
-    return; // Local F9 is serviced independently of the profile event queue.
   if(swid == SW_PLUS && event_type == SW_EVENT_RELEASE)
   {
     goto_next_profile();
@@ -268,6 +266,10 @@ void process_keyevent(uint8_t swid, uint8_t event_type)
   }
   if(is_plus_minus_button(swid))
     return; // just in case lol
+
+  if(herdr_mode)
+    return; // Primary keys are owned by the bridge (F9 by herdr_key_task);
+            // +/- navigation above still works in a herdr profile.
 
   memset(dsb_on_press_path_buf, 0, FILENAME_BUFSIZE);
   snprintf(dsb_on_press_path_buf, FILENAME_BUFSIZE, "/profile_%s/key%d.dsb", profile_name_list[current_profile_number], swid+1);
@@ -309,9 +311,6 @@ void wakeup_from_sleep_and_load_profile(uint8_t profile_to_load)
 
 void handle_sw_event(switch_event_t* this_sw_event)
 {
-  if(herdr_mode)
-    return; // The foreground herdr service owns F9; ignore profile events.
-
   // printf("swid: %d type: %d\n", this_sw_event->id, this_sw_event->type);
   if(is_sleeping && is_plus_minus_button(this_sw_event->id) && this_sw_event->type != SW_EVENT_RELEASE)
   {
@@ -350,6 +349,7 @@ void file_access_mode_task(void)
   while(is_in_file_access_mode)
   {
     hid_command_task();
+    herdr_key_task();
     delay_ms(5);
     ssd1306_SetContrast(OLED_CONTRAST_BRIGHT);
     switch_event_t sw_event = {0};
@@ -367,11 +367,6 @@ void keypress_task(void)
     hid_command_task();
     herdr_key_task();
     delay_ms(herdr_mode ? 1 : 5);
-    if(herdr_mode)
-    {
-      clear_sw_queue();
-      continue; // Do not sleep or draw profile UI over the herdr display.
-    }
 
     if(is_in_file_access_mode)
       file_access_mode_task();
@@ -382,14 +377,17 @@ void keypress_task(void)
       needs_gv_save = 0;
     }
 
-    uint32_t ms_since_last_keypress = millis() - last_keypress;
-    if(ms_since_last_keypress > sleep_after_ms_index_to_time_lookup[dp_settings.sleep_index])
-      start_sleeping();
-    else if(ms_since_last_keypress > OLED_DIM_AFTER_MS)
-      ssd1306_SetContrast(OLED_CONTRAST_DIM);
-    
-    if(is_sleeping == 0)
-      draw_kbled_icon(0, 1);
+    if(!herdr_mode)
+    {
+      uint32_t ms_since_last_keypress = millis() - last_keypress;
+      if(ms_since_last_keypress > sleep_after_ms_index_to_time_lookup[dp_settings.sleep_index])
+        start_sleeping();
+      else if(ms_since_last_keypress > OLED_DIM_AFTER_MS)
+        ssd1306_SetContrast(OLED_CONTRAST_DIM);
+
+      if(is_sleeping == 0)
+        draw_kbled_icon(0, 1);
+    }
 
     switch_event_t sw_event = {0};
     if(q_pop(&switch_event_queue, &sw_event) == 0)

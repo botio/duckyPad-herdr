@@ -74,6 +74,10 @@ def main():
 #define HID_COMMAND_DELETE_DIR 19
 #define HID_COMMAND_DUMP_SD 32
 #define HID_COMMAND_OPEN_FILE_FOR_READING 33
+#define HID_COMMAND_SET_RGB_FRAME 34
+#define HID_COMMAND_SET_OLED_TEXT 35
+#define HID_COMMAND_SET_HERDR_MODE 36
+#define HID_COMMAND_GET_HERDR_KEYS 37
 typedef int RTC_HandleTypeDef;
 typedef struct { uint8_t Hours, Minutes, Seconds; } RTC_TimeTypeDef;
 typedef struct { uint8_t Year, Month, Date; } RTC_DateTypeDef;
@@ -104,6 +108,14 @@ static uint8_t blue_after_brightness[NEOPIXEL_COUNT];
 #define __HAL_SPI_GET_FLAG(handle, flag) 1
 #define __disable_irq()
 #define __enable_irq()
+#define __get_PRIMASK() 0
+#define __set_PRIMASK(value) ((void)(value))
+static uint8_t herdr_rgb_msg[64], herdr_oled_msg[64];
+static uint8_t herdr_rgb_pending, herdr_oled_pending, herdr_host_update;
+static uint8_t herdr_keys_pending;
+static volatile uint8_t is_in_file_access_mode;
+static void herdr_display_task(void) {}
+void herdr_key_task(void) {}
 static uint8_t queued_hid_msg[USBD_CUSTOMHID_OUTREPORT_BUF_SIZE];
 static volatile uint8_t queued_hid_msg_pending;
 static int is_busy;
@@ -139,7 +151,6 @@ static const uint8_t brightness_index_to_percent_lookup[1] = {100};
 static struct { int brightness_index; } dp_settings;
 
 ''' + animation + '\n' + handler + r'''
-static volatile uint8_t is_in_file_access_mode;
 static int herdr_mode, sd_walk_state, current_profile_number;
 static struct { void *fs; } sd_file;
 static int dir, close_result, dir_result, closes, draws, sends, delays;

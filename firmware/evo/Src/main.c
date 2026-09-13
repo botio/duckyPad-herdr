@@ -20,6 +20,7 @@
 #include "main.h"
 #include "fatfs.h"
 #include "usb_device.h"
+#include "hid_task.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -181,7 +182,7 @@ uint32_t current_tick;
 
 uint8_t fw_version_major = 3;
 uint8_t fw_version_minor = 1;
-uint8_t fw_version_patch = 14;
+uint8_t fw_version_patch = 15;
 uint8_t dsvm_version = 2;
 
 /* USER CODE END PV */
@@ -213,7 +214,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	current_tick++;
   if(current_tick % 2 == 0)
     kb_scan_task();
-  if(current_tick % 4 == 0)
+  // Herdr RGB/F9 rendering is foreground-only; do not overlap it with
+  // timer-driven macro animations.
+  if(current_tick % 4 == 0 && !herdr_mode)
     led_animation_handler();
 }
 

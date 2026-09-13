@@ -35,6 +35,13 @@ uint8_t sd_walk_current_profile_number;
 // callback to return before IOHIDDeviceSetReport completes.
 static uint8_t queued_hid_msg[USBD_CUSTOMHID_OUTREPORT_BUF_SIZE];
 static volatile uint8_t queued_hid_msg_pending;
+// USB callbacks publish complete snapshots; only foreground code renders them.
+static uint8_t herdr_rgb_msg[USBD_CUSTOMHID_OUTREPORT_BUF_SIZE];
+static uint8_t herdr_oled_msg[USBD_CUSTOMHID_OUTREPORT_BUF_SIZE];
+static volatile uint8_t herdr_rgb_pending, herdr_oled_pending;
+static volatile uint8_t herdr_host_update;
+static volatile uint8_t herdr_keys_pending;
+static uint8_t herdr_bridge_enabled;
 // Mirror diagnostic: cumulative READ_FILE count, shown on the OLED.
 static uint32_t hid_read_progress;
 
@@ -128,7 +135,8 @@ static uint8_t f9_report[DP_HID_MSG_SIZE] = {HID_USAGE_ID_KEYBOARD};
 
 void herdr_key_task(void)
 {
-  uint8_t sample = herdr_mode && poll_sw_state(HERDR_F9_SWITCH, 1);
+  uint8_t active = herdr_mode && !is_in_file_access_mode;
+  uint8_t sample = active && poll_sw_state(HERDR_F9_SWITCH, 1);
   uint32_t now = millis();
   if(sample != f9_sample)
   {
@@ -136,10 +144,10 @@ void herdr_key_task(void)
     f9_sample_since = now;
   }
   // Five milliseconds of stable input filters switch bounce, not a hold delay.
-  if(!herdr_mode || now - f9_sample_since >= 5)
+  if(!active || now - f9_sample_since >= 5)
     f9_down = sample;
 
-  if(herdr_mode && (!f9_led_initialized || f9_led_down != f9_down))
+  if(active && (!f9_led_initialized || f9_led_down != f9_down))
   {
     set_pixel_3color_update_buffer(HERDR_F9_SWITCH, 255,
       f9_down ? 0 : 255, f9_down ? 0 : 255);
@@ -147,8 +155,13 @@ void herdr_key_task(void)
     f9_led_down = f9_down;
     f9_led_initialized = 1;
   }
-  if(!herdr_mode)
+  if(!active)
+  {
     f9_led_initialized = 0;
+    // Do not send an unsent F9 press after leaving the Herdr profile.
+    f9_pending = f9_reported != 0;
+    f9_pending_down = 0;
+  }
 
   if(hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED)
   {
@@ -183,6 +196,8 @@ void herdr_key_task(void)
 // Animations are disabled per-pixel so the colors persist until the next frame.
 void herdr_set_rgb_frame(uint8_t* this_msg)
 {
+  if(!herdr_mode || !herdr_bridge_enabled || is_in_file_access_mode)
+    return;
   for(uint8_t i = 0; i < NEOPIXEL_COUNT; i++)
   {
     if(herdr_mode && i == HERDR_F9_SWITCH)
@@ -197,6 +212,8 @@ void herdr_set_rgb_frame(uint8_t* this_msg)
 // line; the panel wraps/stops at its edges.
 void herdr_set_oled_text(uint8_t* this_msg)
 {
+  if(!herdr_mode || !herdr_bridge_enabled || is_in_file_access_mode)
+    return;
   uint8_t len = this_msg[3];
   if(len > HERDR_OLED_MAX_TEXT) len = HERDR_OLED_MAX_TEXT;
   ssd1306_Fill(Black);
@@ -321,12 +338,13 @@ void parse_hid_msg(uint8_t* this_msg)
     return;
   }
   /*
-    SET_HERDR_MODE (36): enable/disable herdr light-board mode.
+    SET_HERDR_MODE (36): bridge availability, not profile selection.
+    RGB/OLED ownership still requires the selected HERDR_PROFILE marker.
     [0]=5 [1]=0 [2]=36 [3]=0/1. No response.
   */
   if(command_type == HID_COMMAND_SET_HERDR_MODE)
   {
-    herdr_mode = this_msg[3] ? 1 : 0;
+    herdr_bridge_enabled = this_msg[3] != 0;
     return;
   }
   /*
@@ -337,7 +355,10 @@ void parse_hid_msg(uint8_t* this_msg)
   if(command_type == HID_COMMAND_GET_HERDR_KEYS)
   {
     sw_scan();
-    uint32_t key_state = get_sw_state_bitfield();
+    // Only the selected herdr profile exposes agent-key states. A bridge
+    // polling during an ordinary profile must not see presses as focuses.
+    uint32_t key_state = herdr_mode && herdr_bridge_enabled && !is_in_file_access_mode
+      ? get_sw_state_bitfield() & ((1U << HERDR_F9_SWITCH) - 1) : 0;
     hid_tx_buf[1] = HERDR_IN_KEY_STATE;
     memcpy(hid_tx_buf + 3, &key_state, sizeof(key_state));
     send_hid_cmd_response(hid_tx_buf);
@@ -852,6 +873,31 @@ static uint8_t is_storage_hid_command(uint8_t command)
 
 void receive_hid_report(const uint8_t* hid_msg)
 {
+  if(hid_msg[0] == HID_USAGE_ID_PC_DATA)
+  {
+    if(hid_msg[2] == HID_COMMAND_SET_RGB_FRAME)
+    {
+      memcpy(herdr_rgb_msg, hid_msg, sizeof(herdr_rgb_msg));
+      herdr_rgb_pending = 1;
+      return;
+    }
+    if(hid_msg[2] == HID_COMMAND_SET_OLED_TEXT)
+    {
+      memcpy(herdr_oled_msg, hid_msg, sizeof(herdr_oled_msg));
+      herdr_oled_pending = 1;
+      return;
+    }
+    if(hid_msg[2] == HID_COMMAND_SET_HERDR_MODE)
+    {
+      herdr_host_update = hid_msg[3] ? 2 : 1;
+      return;
+    }
+    if(hid_msg[2] == HID_COMMAND_GET_HERDR_KEYS)
+    {
+      herdr_keys_pending = 1;
+      return;
+    }
+  }
   if(hid_msg[0] != HID_USAGE_ID_PC_DATA || is_busy || !is_storage_hid_command(hid_msg[2]))
   {
     handle_hid_command((uint8_t*)hid_msg);
@@ -864,17 +910,62 @@ void receive_hid_report(const uint8_t* hid_msg)
   queued_hid_msg_pending = 1;
 }
 
+static void herdr_display_task(void)
+{
+  uint8_t msg[USBD_CUSTOMHID_OUTREPORT_BUF_SIZE];
+  uint32_t irq_state = __get_PRIMASK();
+  __disable_irq();
+  uint8_t update = herdr_host_update;
+  herdr_host_update = 0;
+  __set_PRIMASK(irq_state);
+  if(update)
+    herdr_bridge_enabled = update == 2;
+
+  irq_state = __get_PRIMASK();
+  __disable_irq();
+  uint8_t pending = herdr_rgb_pending;
+  if(pending)
+    memcpy(msg, herdr_rgb_msg, sizeof(msg));
+  herdr_rgb_pending = 0;
+  __set_PRIMASK(irq_state);
+  if(pending)
+    herdr_set_rgb_frame(msg);
+
+  irq_state = __get_PRIMASK();
+  __disable_irq();
+  pending = herdr_oled_pending;
+  if(pending)
+    memcpy(msg, herdr_oled_msg, sizeof(msg));
+  herdr_oled_pending = 0;
+  __set_PRIMASK(irq_state);
+  if(pending)
+    herdr_set_oled_text(msg);
+}
+
 void hid_command_task(void)
 {
+  herdr_display_task();
   uint8_t hid_msg[USBD_CUSTOMHID_OUTREPORT_BUF_SIZE];
-  if(!queued_hid_msg_pending)
-    return;
-
+  uint32_t irq_state = __get_PRIMASK();
   __disable_irq();
-  memcpy(hid_msg, queued_hid_msg, USBD_CUSTOMHID_OUTREPORT_BUF_SIZE);
+  uint8_t storage_pending = queued_hid_msg_pending;
+  uint8_t keys_pending = herdr_keys_pending;
+  if(storage_pending)
+    memcpy(hid_msg, queued_hid_msg, sizeof(hid_msg));
   queued_hid_msg_pending = 0;
-  __enable_irq();
-  handle_hid_command(hid_msg);
+  herdr_keys_pending = 0;
+  __set_PRIMASK(irq_state);
+  if(storage_pending)
+    handle_hid_command(hid_msg);
+  else if(keys_pending && !is_in_file_access_mode)
+  {
+    // Storage owns the shared IN endpoint during file access. The bridge
+    // tolerates unanswered polls; key replies must not interleave SD data.
+    memset(hid_msg, 0, sizeof(hid_msg));
+    hid_msg[0] = HID_USAGE_ID_PC_DATA;
+    hid_msg[2] = HID_COMMAND_GET_HERDR_KEYS;
+    handle_hid_command(hid_msg);
+  }
 }
 
 #define PROFILE_OVERFLOW 255

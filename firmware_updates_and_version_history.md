@@ -4,6 +4,17 @@
 
 -----
 
+## Herdr fork: v3.1.15
+
+- Select Herdr using a normal profile-list entry marked `HERDR_PROFILE 1`; starting the Bridge never selects it.
+- Keep physical + / − navigation and ordinary macro profiles. Release F9 on leaving Herdr or entering file access.
+- Coalesce RGB/OLED snapshots in USB callbacks and render them only in foreground; exclude macro timer animations while Herdr is selected.
+- Keep Bridge key polls out of SD file-access replies.
+- Requires a microSD card containing the Herdr profile. Create it with Configurator 5.0.27+; older Bridge binaries retain wire compatibility.
+- Verified with ARM GNU Toolchain 13.2.1 image checks and production-C host regression harnesses. Physical LED flicker/waveform behavior is not established by these host checks.
+
+[Download v3.1.15](https://github.com/botio/duckyPad-herdr/releases/tag/v3.1.15)
+
 ## Latest Firmware
 
 ### v3.0.4

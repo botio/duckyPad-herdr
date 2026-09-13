@@ -8,6 +8,7 @@
 #include "ui_task.h"
 #include "ds_vm.h"
 #include "keyboard.h"
+#include "hid_task.h"
 
 const char settings_file_path[] = "/dpp_config.txt";
 const char default_settings_file[] = "sleep_index 0\nbrightness_index 0\nlast_profile 1\nfw_ver 0.0.0\nkb_layout dpkm_English (US).txt\n";
@@ -27,6 +28,7 @@ const char cmd_BG_COLOR[] = "BG_COLOR ";
 const char cmd_KD_COLOR[] = "KEYDOWN_COLOR ";
 const char cmd_SWCOLOR[] = "SWCOLOR_";
 const char cmd_DIM_UNUSED_KEYS[] = "DIM_UNUSED_KEYS 0";
+const char cmd_HERDR_PROFILE[] = "HERDR_PROFILE "; // trailing space separates value
 
 FRESULT sd_fresult;
 FATFS sd_fs;
@@ -224,6 +226,10 @@ void parse_profile_config_line(char* this_line, profile_cache* this_profile)
   {
     this_profile->dim_unused_keys = 0;
   }
+  else if(strncmp(cmd_HERDR_PROFILE, this_line, strlen(cmd_HERDR_PROFILE)) == 0)
+  {
+    this_profile->is_herdr = strcmp(this_line, "HERDR_PROFILE 1") == 0;
+  }
 }
 
 const char* on_release_dsb_suffix = "-release.dsb";
@@ -315,6 +321,9 @@ uint8_t goto_profile_without_updating_rgb_LED(uint8_t profile_number)
   if(load_profile(profile_number))
     return 1;
   current_profile_number = profile_number;
+  // Herdr is a profile, not a remote override: the pad is only a herdr
+  // light-board while this profile is selected. cmd36 no longer flips it.
+  herdr_mode = curr_pf_info.is_herdr;
   draw_current_profile();
   save_settings(&dp_settings);
   return 0;

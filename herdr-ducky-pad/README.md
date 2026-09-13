@@ -10,6 +10,7 @@ macropad) from herdr's agent state.
 - **Press an agent key → focus that agent's pane** in herdr.
 - **Key 15 is F9.** It is white at rest and red while pressed or held.
 - The pad's **OLED** shows a short list of the mapped agents.
+- **Herdr is a selectable profile**, not a whole-device takeover. Firmware 3.1.15+ only accepts Bridge display data while that profile is selected; **+ / −** still switches profiles.
 
 No hardware changes. Everything on the pad side is firmware (the pad is a
 custom-HID device, VID `0x483` / PID `0xd11c`); this plugin is a small Rust
@@ -19,7 +20,7 @@ The duckyPad set up as a herdr light board:
 
 ![duckyPad as a herdr light board](img/duckypad-herdr.webp)
 
-## States & colors (locked)
+## Default states & colors
 
 | state     | color          |
 |-----------|----------------|
@@ -29,17 +30,21 @@ The duckyPad set up as a herdr light board:
 | `unknown` | amber          |
 | `idle`    | dim gray       |
 
+Configurator **5.0.27+ → HERDR → STATUS COLORS → SAVE COLORS** edits all five states without a JSON editor. The Bridge reloads the host-wide palette every two seconds and preserves pinned agents. Linux uses `$XDG_CONFIG_HOME/duckyPad/herdr.json` (default `~/.config`); macOS uses `~/Library/Application Support/duckyPad/herdr.json`.
+
+Create a profile using **ADD HERDR PROFILE**, then **SAVE** it to the pad. Select it with the pad's **+ / −** buttons. The SD marker is exactly `HERDR_PROFILE 1`; a name alone does not enable Herdr. Returning to a macro profile restores its normal behavior. The next Bridge heartbeat supplies the active Herdr display, even if no agent changed.
+
 With **more than 14 agents**, the first 14 in herdr's list order light
 keys; overflow agents stay unlit until an agent slot frees.
 
 ## How it works
 
 - **Firmware** (`../firmware/evo`): four custom-HID commands (`34` RGB
-  frame, `35` OLED text, `36` herdr-mode on/off, `37` get key state). In
-  "herdr mode" the first 14 keys are suppressed from the normal keyboard
-  report; key 15 stays a local **F9** key (white at rest, red while pressed
-  or held). On `37` the pad synchronously samples all switches and answers
-  with a 32-bit little-endian key-state bitfield in the custom IN report.
+  frame, `35` OLED text, `36` Bridge availability, `37` get agent-key state).
+  The selected Herdr profile reserves keys 1–14 for agent focus and key 15
+  for local **F9** (white at rest, red while pressed). Command 37 returns
+  only agent-key bits, or zero outside Herdr. During SD file access, key
+  polls remain unanswered to avoid interleaving with storage responses.
 - **This daemon**: a 10ms main loop. It re-polls herdr's Unix socket with a
   one-shot `agent.list` every 2s (the socket handles **one request per
   connection**, so there is no persistent push subscription), keeps a
@@ -111,32 +116,33 @@ to dry run automatically.
 ## Building & flashing the firmware
 
 The pad side is the stock duckyPad EVO firmware plus four herdr
-custom-HID commands (`34` RGB frame, `35` OLED text, `36` herdr mode,
-`37` key state).
+custom-HID commands (`34` RGB frame, `35` OLED text, `36` Bridge availability,
+`37` agent-key state).
 
-**Flash it — no Keil, no toolchain needed.** A pre-built image of this
-firmware, the **v3.1.2-herdr** build, ships in the repo. It was produced
-with `arm-none-eabi-gcc`; the same build process has been proven to boot
-and run on a real duckyPad. Hold the pad's `DFU` button while plugging it
-in, then:
+**Flash it — no Keil, no toolchain needed.** The pre-built **v3.1.15-herdr**
+image is built with pinned ARM GNU Toolchain 13.2.1. Host regressions cover
+profile ownership, foreground RGB/OLED handoff, file-access exclusion,
+navigation, and F9 release. These do not verify physical LED waveforms.
+Hold the pad's `DFU` button while plugging it in, then:
 
 ```bash
-dfu-util --device 0483:df11 -a 0 -D ../firmware/duckypad_v3.1.2-herdr.dfu
+dfu-util --device 0483:df11 -a 0 -D ../firmware/duckypad_v3.1.15-herdr.dfu
 ```
 
-The OLED boot screen shows `duckyPad V3.1.2` once it's running. The full
+The OLED boot screen shows `duckyPad V3.1.15` once it's running. The full
 procedure (screenshots, and recovery by re-flashing the stock
 `../firmware/duckypad_v3.0.4.dfu`) is in the main repo:
 [`firmware_updates_and_version_history.md`](../firmware_updates_and_version_history.md).
 
-In herdr mode the **SD card is not needed** — all display data comes over
-USB HID; the microSD is only used by the stock duckyScript/profile
-features.
+Firmware 3.1.15+ **requires a microSD card with a selected Herdr profile**.
+Starting the Bridge alone, or starting without a profile, cannot take over
+the pad. Existing Bridge binaries use the same wire commands; no reinstall
+is needed solely for profile-based ownership.
 
-F9 uses standard USB keyboard reports (usage `0x42`), including key-up on
-release. Since v3.1.2 it is serviced locally even without an SD card or
-profiles: a 1ms foreground cadence with 5ms switch debounce, rather than
-waiting for a daemon RGB update. Busy USB reports are retried. These are
+F9 uses standard USB keyboard reports (usage `0x42`). Leaving the Herdr
+profile or entering SD file access releases F9 and cancels any unsent press.
+It is serviced locally at a 1ms foreground cadence with 5ms debounce.
+Busy USB reports are retried. These are
 firmware scheduling intervals, not a measured host input latency guarantee.
 
 **Rebuilding from source — only if you modify the C code.** Either:

@@ -36,6 +36,9 @@ typedef struct
   // Bit 0 (LSB): on_press exist, bit 1: on_release exist
   uint8_t dsb_exists[MAX_TOTAL_SW_COUNT];
   uint8_t dim_unused_keys;
+  // HERDR_PROFILE 1 in config.txt: entering this profile puts the pad into
+  // herdr light-board mode (bridge supplies LEDs, F9 is a local shortcut).
+  uint8_t is_herdr;
 } profile_cache;
 
 #define DSB_ON_PRESS_EXISTS 0x1
