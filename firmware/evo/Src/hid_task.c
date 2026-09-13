@@ -135,7 +135,12 @@ static uint8_t f9_report[DP_HID_MSG_SIZE] = {HID_USAGE_ID_KEYBOARD};
 
 void herdr_key_task(void)
 {
-  uint8_t active = herdr_mode && !is_in_file_access_mode;
+  // Key 15 (HERDR_F9_SWITCH) is the local F9 shortcut only while its profile
+  // has no script for it; a configured script runs through the normal macro
+  // path (process_keyevent) instead, keyed on the same dsb_exists bits.
+  uint8_t local_f9 = (curr_pf_info.dsb_exists[HERDR_F9_SWITCH]
+      & (DSB_ON_PRESS_EXISTS | DSB_ON_RELEASE_EXISTS)) == 0;
+  uint8_t active = herdr_mode && !is_in_file_access_mode && local_f9;
   uint8_t sample = active && poll_sw_state(HERDR_F9_SWITCH, 1);
   uint32_t now = millis();
   if(sample != f9_sample)
@@ -192,19 +197,16 @@ void herdr_key_task(void)
   }
 }
 
-// Set all 15 NeoPixels to a per-key RGB frame supplied by the herdr plugin.
-// Animations are disabled per-pixel so the colors persist until the next frame.
+// The bridge owns the first 14 NeoPixels; key 15 keeps its local feedback.
 void herdr_set_rgb_frame(uint8_t* this_msg)
 {
   if(!herdr_mode || !herdr_bridge_enabled || is_in_file_access_mode)
     return;
-  for(uint8_t i = 0; i < NEOPIXEL_COUNT; i++)
-  {
-    if(herdr_mode && i == HERDR_F9_SWITCH)
-      set_pixel_3color_update_buffer(i, 255, f9_down ? 0 : 255, f9_down ? 0 : 255);
-    else
-      set_pixel_3color_update_buffer(i, this_msg[3 + i*3], this_msg[3 + i*3 + 1], this_msg[3 + i*3 + 2]);
-  }
+  for(uint8_t i = 0; i < HERDR_F9_SWITCH; i++)
+    set_pixel_3color_update_buffer(i, this_msg[3 + i*3], this_msg[3 + i*3 + 1], this_msg[3 + i*3 + 2]);
+  if((curr_pf_info.dsb_exists[HERDR_F9_SWITCH]
+      & (DSB_ON_PRESS_EXISTS | DSB_ON_RELEASE_EXISTS)) == 0)
+    set_pixel_3color_update_buffer(HERDR_F9_SWITCH, 255, f9_down ? 0 : 255, f9_down ? 0 : 255);
   neopixel_draw_current_buffer();
 }
 

@@ -157,10 +157,11 @@ impl Daemon {
     }
 
     /// If an agent key was pressed on the pad, focus the agent in that slot.
-    /// Key 15 is the firmware-owned F9 shortcut and is deliberately ignored
-    /// here. A read error marks the stale HID handle as disconnected inside
-    /// `DuckyPad`; `tick` will then discover the replacement handle and replay
-    /// pad state.
+    /// Key 15 is masked out of the agent key state by the firmware: it is the
+    /// local shortcut key (F9 by default, or a user-assigned duckyScript), never
+    /// an agent focus. A read error marks the stale HID handle as disconnected
+    /// inside `DuckyPad`; `tick` will then discover the replacement handle and
+    /// replay pad state.
     fn poll_key(&mut self) {
         if let Err(e) = self.pad.release_key() {
             log::warn!("release_key: {e:#}");

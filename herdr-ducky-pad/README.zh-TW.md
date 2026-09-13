@@ -8,9 +8,9 @@
 - **最多 14 個 herdr agent → 14 顆亮的按鍵。** 前 14 顆 NeoPixel 按鍵各代表
   一個 agent；按鍵的**顏色就是該 agent 的狀態**。
 - **按 agent 的按鍵 → 在 herdr 中聚焦（focus）那個 agent 的 pane。**
-- **第 15 顆是 F9。** 平常白光，按下或按住時是紅光。
+- **第 15 顆是你的本機快捷鍵。** 預設送出 **F9**（平常白光，按下或按住時紅光），也可改成你自己指定的 duckyScript。
 - 鍵盤的 **OLED** 顯示已映射 agent 的簡短清單。
-- **Herdr 是可選的 profile，不再自動接管整台 pad。** 韌體 3.1.15+ 只在選到 Herdr profile 時接受 Bridge 的畫面與燈色；**+ / −** 照常切換 profile。
+- **Herdr 是可選的 profile，不再自動接管整台 pad。** 韌體 3.1.16+ 只在選到 Herdr profile 時接受 Bridge 的畫面與燈色；**+ / −** 照常切換 profile。
 
 不改动硬體。pad 端全部是韌體（pad 是一個 custom-HID 裝置，VID `0x483` /
 PID `0xd11c`）；這個外掛是一個小的 Rust daemon，負責跟 herdr 的 socket 和
@@ -30,7 +30,7 @@ duckyPad 裝成 herdr 光板後的樣子：
 | `unknown` | 琥珀     |
 | `idle`    | 暗灰     |
 
-在 Configurator **5.0.27+ → HERDR → STATUS COLORS → SAVE COLORS** 可修改五種狀態色，不必手改 JSON。色票為這台電腦共用，Bridge 每約兩秒重新載入；既有 agent 綁定不會被色票儲存覆蓋。Linux 使用 `$XDG_CONFIG_HOME/duckyPad/herdr.json`（預設 `~/.config`），macOS 使用 `~/Library/Application Support/duckyPad/herdr.json`。
+在 Configurator **5.0.29+ → HERDR → STATUS COLORS → SAVE COLORS** 可修改五種狀態色，不必手改 JSON。色票為這台電腦共用，Bridge 每約兩秒重新載入；既有 agent 綁定不會被色票儲存覆蓋。Linux 使用 `$XDG_CONFIG_HOME/duckyPad/herdr.json`（預設 `~/.config`），macOS 使用 `~/Library/Application Support/duckyPad/herdr.json`。
 
 按 **ADD HERDR PROFILE** 建立，再按底部 **SAVE** 寫入 pad。用實體 **+ / −** 選到它才會啟用 Herdr；切回其他 profile 就恢復原本巨集。SD 的 `config.txt` 標記是 `HERDR_PROFILE 1`，名稱本身不會啟用模式。即使 agent 狀態沒變，Bridge 的下一次 heartbeat 也會更新切入後的畫面。
 
@@ -41,7 +41,8 @@ duckyPad 裝成 herdr 光板後的樣子：
 
 - **韌體**（`../firmware/evo`）：四個 custom-HID 指令（`34` RGB frame、
   `35` OLED 文字、`36` Bridge 啟用狀態、`37` 讀取 agent 按鍵）。
-  選中的 Herdr profile 把前 14 鍵保留給 agent，第 15 鍵是本機 **F9**。
+  選中的 Herdr profile 把前 14 鍵保留給 agent；第 15 鍵是本機快捷鍵——
+  沒有 script 就是 **F9**，有 `key15.dsb` 就跑那個巨集。
   `37` 只回傳 agent 按鍵的 bitfield；其他 profile 回傳零。
   SD 檔案存取期間不回覆按鍵輪詢，避免與 Configurator 的資料回覆混在一起。
 - **這個 daemon**：10ms 主迴圈。每 2 秒用一次性的 `agent.list` 重新輪詢
@@ -112,26 +113,29 @@ daemon 仍會連到 herdr，並把牠*原本會*送出的每個 HID write 記進
 pad 端是原版 duckyPad EVO 韌體，加上四個 herdr custom-HID 指令
 （`34` RGB、`35` OLED、`36` Bridge 啟用狀態、`37` agent 按鍵）。
 
-**刷寫——不需要 Keil、不需要 toolchain。** repo 內附 **v3.1.15-herdr**，
+**刷寫——不需要 Keil、不需要 toolchain。** repo 內附 **v3.1.16-herdr**，
 用固定的 ARM GNU Toolchain 13.2.1 建置。主機回歸測試涵蓋 profile 控制權、
-RGB/OLED 前景繪製、SD 排他、切換及 F9 釋放；這不等於實機 LED 波形驗證。
+RGB/OLED 前景繪製、SD 排他、切換、第 15 鍵 script-vs-F9 及 F9 釋放；這不等於
+實機 LED 波形驗證。
 插上 pad 時按住 `DFU` 鍵，然後：
 
 ```bash
-dfu-util --device 0483:df11 -a 0 -D ../firmware/duckypad_v3.1.15-herdr.dfu
+dfu-util --device 0483:df11 -a 0 -D ../firmware/duckypad_v3.1.16-herdr.dfu
 ```
 
-跑起來後，OLED boot 畫面會顯示 `duckyPad V3.1.15`。完整步驟（截圖、
+跑起來後，OLED boot 畫面會顯示 `duckyPad V3.1.16`。完整步驟（截圖、
 刷回 stock `../firmware/duckypad_v3.0.4.dfu` 的恢復方式）在主 repo：
 [`firmware_updates_and_version_history.md`](../firmware_updates_and_version_history.md)。
 
-韌體 3.1.15+ **需要 microSD 上有 Herdr profile，並且選中它**。
+韌體 3.1.16+ **需要 microSD 上有 Herdr profile，並且選中它**。
 只啟動 Bridge、沒有 SD 或沒有 profile，都不會接管 pad。
-既有 Bridge 使用相同的 HID 指令，不必只為這次 profile 改動重新安裝。
+既有 Bridge 使用相同的 HID 指令，不必為 profile 改動或可自訂的第 15 鍵重新安裝。
 
-F9 使用標準 USB 鍵盤 report（usage `0x42`）。切離 Herdr 或開始 SD 檔案存取時
-會釋放 F9，並取消尚未送出的按下事件。本機前景迴圈每 1ms 服務一次，加上
-5ms 去彈跳；USB 忙碌時重試回報。這些是排程間隔，不是電腦端實測延遲保證。
+第 15 鍵沒有 script 時，用標準 USB 鍵盤 report（usage `0x42`）送出 F9，
+平常白光、按住時紅光；寫入 `key15.dsb` 後就改跑那個巨集，跟一般巨集鍵一樣。
+切離 Herdr 或開始 SD 檔案存取時會釋放 F9，並取消尚未送出的按下事件。
+本機前景迴圈每 1ms 服務一次，加上 5ms 去彈跳；USB 忙碌時重試回報。
+這些是排程間隔，不是電腦端實測延遲保證。
 
 **要從 source 重建——只有在你改 C code 的時候。** 兩選一：
 

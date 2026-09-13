@@ -4,6 +4,13 @@
 
 -----
 
+## Herdr fork: v3.1.16
+
+- Physical key 15 accepts custom press and/or release duckyScript. With neither script installed, it retains the default hold-F9 behavior.
+- The first 14 keys remain Bridge-owned agent-selection keys; physical + / − profile navigation is unchanged.
+
+[Release link: v3.1.16](https://github.com/botio/duckyPad-herdr/releases/tag/v3.1.16)
+
 ## Herdr fork: v3.1.15
 
 - Select Herdr using a normal profile-list entry marked `HERDR_PROFILE 1`; starting the Bridge never selects it.

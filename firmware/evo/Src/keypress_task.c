@@ -268,8 +268,16 @@ void process_keyevent(uint8_t swid, uint8_t event_type)
     return; // just in case lol
 
   if(herdr_mode)
-    return; // Primary keys are owned by the bridge (F9 by herdr_key_task);
-            // +/- navigation above still works in a herdr profile.
+  {
+    // Keys 0..13 are owned by the bridge. Key 14 (physical 15) is the local
+    // F9 shortcut only when its profile has no script; with a script it runs
+    // like a normal macro key. +/- navigation above still works in a Herdr
+    // profile either way.
+    uint8_t local_script = curr_pf_info.dsb_exists[HERDR_F9_SWITCH]
+      & (DSB_ON_PRESS_EXISTS | DSB_ON_RELEASE_EXISTS);
+    if(swid != HERDR_F9_SWITCH || !local_script)
+      return;
+  }
 
   memset(dsb_on_press_path_buf, 0, FILENAME_BUFSIZE);
   snprintf(dsb_on_press_path_buf, FILENAME_BUFSIZE, "/profile_%s/key%d.dsb", profile_name_list[current_profile_number], swid+1);

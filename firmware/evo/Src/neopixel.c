@@ -7,6 +7,7 @@
 #include "ui_task.h"
 #include "profiles.h"
 #include "sd_util.h"
+#include "hid_task.h"
 
 uint8_t ws_padding_buf[NEOPIXEL_PADDING_BUF_SIZE] __attribute__((aligned(4)));
 uint8_t ws_spi_buf[WS_SPI_BUF_SIZE] __attribute__((aligned(4)));
@@ -196,6 +197,14 @@ void play_keyup_animation(uint8_t sw_number)
 {
   if(sw_number >= NEOPIXEL_COUNT)
     return;
+  if(herdr_mode && sw_number == HERDR_F9_SWITCH)
+  {
+    // Herdr disables timer animations; restore the local key in foreground.
+    uint8_t* color = curr_pf_info.sw_color_default[sw_number];
+    set_pixel_3color_update_buffer(sw_number, color[0], color[1], color[2]);
+    neopixel_draw_current_buffer();
+    return;
+  }
   led_start_animation(&neo_anime[sw_number], curr_pf_info.sw_color_default[sw_number], ANIMATION_CROSS_FADE, 50);
 }
 

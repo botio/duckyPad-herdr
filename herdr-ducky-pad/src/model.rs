@@ -56,7 +56,8 @@ impl AgentState {
 
 /// Physical NeoPixel keys on the duckyPad.
 pub const PAD_SLOTS: usize = 15;
-/// The final physical key is reserved for the firmware-owned F9 shortcut.
+/// The final physical key is reserved as the firmware-owned local shortcut
+/// (F9 by default); it is never an agent slot.
 pub const AGENT_SLOTS: usize = PAD_SLOTS - 1;
 const F9_IDLE_COLOR: [u8; 3] = [255, 255, 255];
 
@@ -109,8 +110,9 @@ fn pick_name(a: &str, b: &str, c: &str, d: &str) -> String {
 /// how the list reorders or how states change; a slot frees when its agent
 /// disappears.
 ///
-/// Key 15 is not an agent slot: firmware reserves it as the white-at-rest,
-/// red-while-held F9 shortcut.
+/// Key 15 is not an agent slot: firmware reserves it as the white-at-rest
+/// local shortcut (F9 by default, or a user-assigned duckyScript like any
+/// macro key).
 #[derive(Debug, Clone, Default)]
 pub struct SlotMap {
     assign: std::collections::HashMap<String, usize>,
@@ -208,8 +210,8 @@ fn pin_slot(
 
 /// Encode the full 15-key frame as 45 bytes: agent key `i` -> bytes
 /// `[i*3, i*3+1, i*3+2]` as (R,G,B). Empty agent slots are (0,0,0); key 15 is
-/// always white at rest so firmware can turn it red while its F9 shortcut is
-/// held.
+/// always the idle shortcut color — firmware shows it white at rest and red
+/// while held only when no user script shadows the local F9.
 ///
 /// `palette` is an optional user color override; pass an empty map to use the
 /// built-in palette.
