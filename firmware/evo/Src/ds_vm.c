@@ -1636,8 +1636,24 @@ void run_dsb(exe_context* ctx, uint8_t this_key_id, char* dsb_path, uint8_t* dsb
 
   if(dsb_cache_buf == NULL)
   {
-    f_open(&sd_file, dsb_path, FA_READ);
+    if(f_open(&sd_file, dsb_path, FA_READ) != FR_OK)
+      longjmp(jmpbuf, EXE_DSB_FOPEN_FAIL);
     this_dsb_file_size = f_size(&sd_file);
+    /* Valid programs start with OP_VMVER (3 bytes) + at least OP_HALT. */
+    if(this_dsb_file_size < 4)
+      longjmp(jmpbuf, EXE_ILLEGAL_INSTRUCTION);
+  }
+  else
+  {
+    this_dsb_file_size = DSB_CACHE_BYTE_SIZE; /* upper bound; header still checked */
+  }
+
+  {
+    uint8_t header = 0;
+    read_bytes_safe(0, &header, 1);
+    if(header != OP_VMVER)
+      longjmp(jmpbuf, EXE_ILLEGAL_INSTRUCTION);
+    current_bank = 255; /* force bank reload after the probe if needed */
   }
 
   while(1)

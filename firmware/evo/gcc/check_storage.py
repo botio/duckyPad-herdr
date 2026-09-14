@@ -41,6 +41,8 @@ static FATFS volume;
 static FIL sd_file;
 static FILINFO fno;
 #define HID_TX_BUF_SIZE 64
+#define FILENAME_BUFSIZE 48
+static char lfn_buf[FILENAME_BUFSIZE];
 static uint8_t hid_tx_buf[HID_TX_BUF_SIZE];
 static uint8_t response[HID_TX_BUF_SIZE];
 static unsigned responses;
@@ -156,6 +158,37 @@ static void partial_delete(void) {
     command(HID_COMMAND_DELETE_DIR, "/partialro", FR_OK);
     absent("/partialro");
 }
+
+static void profile_browser_stress(void) {
+    /* Mirrors a full duckyPad profile: many siblings, nested R/O, macOS junk. */
+    command(HID_COMMAND_CREATE_DIR, "/profile_browser", FR_OK);
+    file("/profile_browser/config.txt");
+    file("/profile_browser/.DS_Store");
+    file("/profile_browser/._config.txt");
+    for (int n = 1; n <= 15; n++) {
+        char path[64];
+        snprintf(path, sizeof(path), "/profile_browser/key%d.txt", n);
+        file(path);
+        assert(f_chmod(path, AM_RDO, AM_RDO) == FR_OK);
+        snprintf(path, sizeof(path), "/profile_browser/key%d.dsb", n);
+        file(path);
+        snprintf(path, sizeof(path), "/profile_browser/key%d-release.txt", n);
+        file(path);
+        assert(f_chmod(path, AM_RDO | AM_HID, AM_RDO | AM_HID) == FR_OK);
+        snprintf(path, sizeof(path), "/profile_browser/key%d-release.dsb", n);
+        file(path);
+    }
+    command(HID_COMMAND_CREATE_DIR, "/profile_browser/nested", FR_OK);
+    file("/profile_browser/nested/deep.txt");
+    assert(f_chmod("/profile_browser/nested/deep.txt", AM_RDO, AM_RDO) == FR_OK);
+    assert(f_chmod("/profile_browser/nested", AM_RDO, AM_RDO) == FR_OK);
+    assert(f_chmod("/profile_browser", AM_RDO, AM_RDO) == FR_OK);
+    file("/neighbor_browser.txt");
+    command(HID_COMMAND_DELETE_DIR, "/profile_browser", FR_OK);
+    absent("/profile_browser");
+    exists("/neighbor_browser.txt", 0);
+    command(HID_COMMAND_DELETE_DIR, "/profile_browser", FR_OK);
+}
 static void creation_and_file_delete(void) {
     command(HID_COMMAND_CREATE_DIR, "/existing", FR_OK);
     file("/existing/keep.txt");
@@ -253,6 +286,7 @@ int main(int argc, char **argv) {
     assert(f_mount(&volume, "", 1) == FR_OK);
     recursive_delete();
     partial_delete();
+    profile_browser_stress();
     creation_and_file_delete();
     storage_errors();
     path_bounds();

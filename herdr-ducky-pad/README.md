@@ -11,7 +11,7 @@ macropad) from herdr's agent state.
 - **Key 15 is your local shortcut key.** It sends **F9** by default (white at
   rest, red while pressed or held) or runs any duckyScript you assign to it.
 - The pad's **OLED** shows a short list of the mapped agents.
-- **Herdr is a selectable profile**, not a whole-device takeover. Firmware 3.1.18+ only accepts Bridge display data while that profile is selected; **+ / −** still switches profiles.
+- **Herdr is a selectable profile**, not a whole-device takeover. Firmware 3.1.19+ only accepts Bridge display data while that profile is selected; **+ / −** still switches profiles.
 
 No hardware changes. Everything on the pad side is firmware (the pad is a
 custom-HID device, VID `0x483` / PID `0xd11c`); this plugin is a small Rust
@@ -121,7 +121,7 @@ The pad side is the stock duckyPad EVO firmware plus four herdr
 custom-HID commands (`34` RGB frame, `35` OLED text, `36` Bridge availability,
 `37` agent-key state).
 
-**Flash it — no Keil, no toolchain needed.** The pre-built **v3.1.18-herdr**
+**Flash it — no Keil, no toolchain needed.** The pre-built **v3.1.19-herdr**
 image is built with pinned ARM GNU Toolchain 13.2.1. Host regressions cover
 profile ownership, foreground RGB/OLED handoff, file-access exclusion,
 navigation, key 15 script-vs-F9 fallback, and F9 release. These do not verify
@@ -129,15 +129,15 @@ physical LED waveforms.
 Hold the pad's `DFU` button while plugging it in, then:
 
 ```bash
-dfu-util --device 0483:df11 -a 0 -D ../firmware/duckypad_v3.1.18-herdr.dfu
+dfu-util --device 0483:df11 -a 0 -D ../firmware/duckypad_v3.1.19-herdr.dfu
 ```
 
-The OLED boot screen shows `duckyPad V3.1.18` once it's running. The full
+The OLED boot screen shows `duckyPad V3.1.19` once it's running. The full
 procedure (screenshots, and recovery by re-flashing the stock
 `../firmware/duckypad_v3.0.4.dfu`) is in the main repo:
 [`firmware_updates_and_version_history.md`](../firmware_updates_and_version_history.md).
 
-Firmware 3.1.18+ **requires a microSD card with a selected Herdr profile**.
+Firmware 3.1.19+ **requires a microSD card with a selected Herdr profile**.
 Starting the Bridge alone, or starting without a profile, cannot take over
 the pad. Existing Bridge binaries use the same wire commands; no reinstall
 is needed solely for profile-based ownership or the configurable key 15.

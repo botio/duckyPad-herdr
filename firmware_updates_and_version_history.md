@@ -4,6 +4,15 @@
 
 -----
 
+## Herdr fork: v3.1.19
+
+- Profile deletion rewinds the directory scan after every removal and retries emptying if the final rmdir still reports non-empty, so sibling files are not skipped mid-delete.
+- Long filenames are used when present; LFN support is armed for the delete path.
+- Any open file handle is closed before DELETE_DIR.
+- Zero-byte / headerless .dsb files (left by interrupted SAVE) are ignored at profile load and rejected at run, so keys no longer crash with Stack Underflow at PC 0.
+
+[Release link: v3.1.19](https://github.com/botio/duckyPad-herdr/releases/tag/v3.1.19)
+
 ## Herdr fork: v3.1.18
 
 - Deleting a profile now clears read-only (AM_RDO) markers on its files and directories first, so factory-shipped or host-copied read-only profiles delete cleanly instead of failing with `FR_DENIED`.

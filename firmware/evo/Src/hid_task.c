@@ -65,9 +65,15 @@ uint8_t delete_node (
     uint16_t i, j;
     FRESULT fr, close_fr;
     DIR dir;
+    const char* name;
+    uint8_t passes = 0;
 
     for (i = 0; i < sz_buff && path[i]; i++) ; /* Bounded path length */
     if (i + 1 >= sz_buff) return FR_INVALID_NAME; /* Slash and terminator */
+
+    /* LFN support must be armed: other code paths set this only when listing. */
+    my_fno->lfname = lfn_buf;
+    my_fno->lfsize = FILENAME_BUFSIZE - 1;
 
     fr = f_opendir(&dir, path); /* Open the sub-directory to make it empty */
     if (fr == FR_NO_FILE || fr == FR_NO_PATH) {
@@ -80,35 +86,67 @@ uint8_t delete_node (
 
     path[i++] = _T('/');
     path[i] = 0;
+
+    /* Empty the directory. After every successful removal, rewind so a
+     * delete-during-iterate pass cannot skip the next entry (FatFs leaves
+     * DDEM holes; index advancement can otherwise miss siblings). Retry the
+     * whole scan a few times if the final rmdir still reports non-empty. */
     for (;;) {
-        fr = f_readdir(&dir, my_fno);  /* Get a directory item */
-        if (fr != FR_OK || !my_fno->fname[0]) break;   /* End of directory? */
-        for (j = 0; my_fno->fname[j]; j++) ;
+        fr = f_readdir(&dir, my_fno);
+        if (fr != FR_OK || !my_fno->fname[0]) {
+            path[--i] = 0;
+            close_fr = f_closedir(&dir);
+            if (fr == FR_OK) fr = close_fr;
+            if (fr != FR_OK)
+                return fr;
+            if (f_chmod(path, 0, AM_RDO) != FR_OK) { /* best-effort */ }
+            fr = f_unlink(path);
+            if (fr != FR_DENIED)
+                return fr;
+            /* FR_DENIED here is "not empty" or still R/O. Re-open and rescan. */
+            if (++passes >= 4)
+                return fr;
+            fr = f_opendir(&dir, path);
+            if (fr != FR_OK)
+                return fr;
+            path[i++] = _T('/');
+            path[i] = 0;
+            continue;
+        }
+
+        name = (my_fno->lfname && my_fno->lfname[0]) ? my_fno->lfname : my_fno->fname;
+        for (j = 0; name[j]; j++) ;
         if (i + j >= sz_buff) {
-            fr = FR_INVALID_NAME;
-            break; /* Never unlink or recurse with a truncated path. */
+            path[--i] = 0;
+            f_closedir(&dir);
+            return FR_INVALID_NAME;
         }
-        memcpy(path + i, my_fno->fname, j + 1);
-        if (my_fno->fattrib & AM_DIR) {    /* Item is a sub-directory */
+        memcpy(path + i, name, j + 1);
+
+        if (my_fno->fattrib & AM_DIR) {
             fr = delete_node(path, sz_buff, my_fno);
-        } else {                        /* Item is a file */
+        } else {
+            if (my_fno->fattrib & AM_RDO)
+                f_chmod(path, 0, AM_RDO);
             fr = f_unlink(path);
-            if (fr == FR_DENIED && f_chmod(path, 0, AM_RDO) == FR_OK)
-                fr = f_unlink(path);   /* Read-only markers must not block deletion. */
+            if (fr == FR_DENIED) {
+                f_chmod(path, 0, AM_RDO);
+                fr = f_unlink(path);
+            }
         }
-        if (fr != FR_OK) break;
+        if (fr != FR_OK) {
+            path[--i] = 0;
+            f_closedir(&dir);
+            return fr;
+        }
+        /* Restart at the first remaining entry after a mutation. */
+        fr = f_readdir(&dir, 0);
+        if (fr != FR_OK) {
+            path[--i] = 0;
+            f_closedir(&dir);
+            return fr;
+        }
     }
-
-    path[--i] = 0;  /* Restore the path name */
-    close_fr = f_closedir(&dir);
-    if (fr == FR_OK) fr = close_fr;
-
-    if (fr == FR_OK) {
-        fr = f_unlink(path);  /* Delete the empty sub-directory */
-        if (fr == FR_DENIED && f_chmod(path, 0, AM_RDO) == FR_OK)
-            fr = f_unlink(path);
-    }
-    return fr;
 }
 
 void send_hid_cmd_response(uint8_t* hid_cmdbuf)
@@ -871,7 +909,10 @@ void parse_hid_msg(uint8_t* this_msg)
   else if(command_type == HID_COMMAND_DELETE_DIR)
   {
     enter_file_access_mode();
-    FRESULT fr = delete_node((char*)this_msg+3, HID_TX_BUF_SIZE - 3, &fno);
+    /* An open FIL from a prior write must not hold directory entries. */
+    FRESULT fr = sd_file.fs != NULL ? f_close(&sd_file) : FR_OK;
+    if(fr == FR_OK)
+      fr = delete_node((char*)this_msg+3, HID_TX_BUF_SIZE - 3, &fno);
     if(fr != FR_OK)
     {
       hid_tx_buf[2] = HID_RESPONSE_GENERIC_ERROR;

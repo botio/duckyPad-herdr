@@ -253,6 +253,10 @@ void load_dsb_exists_cache(char* profile_dir_path)
     // file name starts with "key"
     if(strncmp(file_name, "key", 3))
       continue;
+    /* Zero-byte .dsb files are left by interrupted HID writes (CREATE_ALWAYS
+     * truncates before the first chunk). They must not arm the key. */
+    if(fno.fsize < 4)
+      continue;
     char* dash_start = strrchr(file_name, '-');
     char* dot_start = strrchr(file_name, '.');
     // key4-release.dsb
