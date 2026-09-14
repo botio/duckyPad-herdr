@@ -63,25 +63,32 @@ uint8_t delete_node (
 )
 {
     uint16_t i, j;
-    uint16_t fr;
+    FRESULT fr, close_fr;
     DIR dir;
 
+    for (i = 0; i < sz_buff && path[i]; i++) ; /* Bounded path length */
+    if (i + 1 >= sz_buff) return FR_INVALID_NAME; /* Slash and terminator */
+
     fr = f_opendir(&dir, path); /* Open the sub-directory to make it empty */
+    if (fr == FR_NO_FILE || fr == FR_NO_PATH) {
+        /* f_opendir also returns FR_NO_PATH for an existing file. */
+        FRESULT stat_fr = f_stat(path, my_fno);
+        if (stat_fr == FR_NO_FILE || stat_fr == FR_NO_PATH) return FR_OK;
+        return stat_fr == FR_OK ? fr : stat_fr;
+    }
     if (fr != FR_OK) return fr;
 
-    for (i = 0; path[i]; i++) ; /* Get current path length */
     path[i++] = _T('/');
-
+    path[i] = 0;
     for (;;) {
         fr = f_readdir(&dir, my_fno);  /* Get a directory item */
         if (fr != FR_OK || !my_fno->fname[0]) break;   /* End of directory? */
-        j = 0;
-        do {    /* Make a path name */
-            if (i + j >= sz_buff) { /* Buffer over flow? */
-                fr = 100; break;    /* Fails with 100 when buffer overflow */
-            }
-            path[i + j] = my_fno->fname[j];
-        } while (my_fno->fname[j++]);
+        for (j = 0; my_fno->fname[j]; j++) ;
+        if (i + j >= sz_buff) {
+            fr = FR_INVALID_NAME;
+            break; /* Never unlink or recurse with a truncated path. */
+        }
+        memcpy(path + i, my_fno->fname, j + 1);
         if (my_fno->fattrib & AM_DIR) {    /* Item is a sub-directory */
             fr = delete_node(path, sz_buff, my_fno);
         } else {                        /* Item is a file */
@@ -91,7 +98,8 @@ uint8_t delete_node (
     }
 
     path[--i] = 0;  /* Restore the path name */
-    f_closedir(&dir);
+    close_fr = f_closedir(&dir);
+    if (fr == FR_OK) fr = close_fr;
 
     if (fr == FR_OK) fr = f_unlink(path);  /* Delete the empty sub-directory */
     return fr;
@@ -786,12 +794,23 @@ void parse_hid_msg(uint8_t* this_msg)
   [0]   report_id: always 4
   [1]   unused
   [2]   0 = OK, 1 = ERROR, 2 = BUSY
+  [3]   FatFs FRESULT on error, 0 on success
   */
   else if(command_type == HID_COMMAND_DELETE_FILE)
   {
     enter_file_access_mode();
-    f_close(&sd_file);
-    f_unlink(this_msg+3);
+    FRESULT fr = sd_file.fs != NULL ? f_close(&sd_file) : FR_OK;
+    if(fr == FR_OK)
+    {
+      fr = f_unlink((char*)this_msg+3);
+      if(fr == FR_NO_FILE || fr == FR_NO_PATH)
+        fr = FR_OK;
+    }
+    if(fr != FR_OK)
+    {
+      hid_tx_buf[2] = HID_RESPONSE_GENERIC_ERROR;
+      hid_tx_buf[3] = fr;
+    }
     send_hid_cmd_response(hid_tx_buf);
   }
   /*
@@ -807,12 +826,23 @@ void parse_hid_msg(uint8_t* this_msg)
   [0]   report_id: always 4
   [1]   unused
   [2]   0 = OK, 1 = ERROR, 2 = BUSY
+  [3]   FatFs FRESULT on error, 0 on success
   */
   else if(command_type == HID_COMMAND_CREATE_DIR)
   {
     enter_file_access_mode();
-    if(f_mkdir(this_msg+3) != 0)
+    FRESULT fr = f_mkdir((char*)this_msg+3);
+    if(fr == FR_EXIST)
+    {
+      fr = f_stat((char*)this_msg+3, &fno);
+      if(fr == FR_OK && !(fno.fattrib & AM_DIR))
+        fr = FR_EXIST;
+    }
+    if(fr != FR_OK)
+    {
       hid_tx_buf[2] = HID_RESPONSE_GENERIC_ERROR;
+      hid_tx_buf[3] = fr;
+    }
     send_hid_cmd_response(hid_tx_buf);
   }
   /*
@@ -828,12 +858,17 @@ void parse_hid_msg(uint8_t* this_msg)
   [0]   report_id: always 4
   [1]   unused
   [2]   0 = OK, 1 = ERROR, 2 = BUSY
+  [3]   FatFs FRESULT on error, 0 on success
   */
   else if(command_type == HID_COMMAND_DELETE_DIR)
   {
     enter_file_access_mode();
-    if(delete_node(this_msg+3, HID_TX_BUF_SIZE - 3, &fno) != FR_OK)
+    FRESULT fr = delete_node((char*)this_msg+3, HID_TX_BUF_SIZE - 3, &fno);
+    if(fr != FR_OK)
+    {
       hid_tx_buf[2] = HID_RESPONSE_GENERIC_ERROR;
+      hid_tx_buf[3] = fr;
+    }
     send_hid_cmd_response(hid_tx_buf);
   }
   else // not a valid HID command

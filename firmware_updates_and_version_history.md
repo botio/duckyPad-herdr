@@ -4,6 +4,15 @@
 
 -----
 
+## Herdr fork: v3.1.17
+
+- SAVE deletes are idempotent: deleting an already-absent profile or file succeeds, so a retry after a partial delete no longer fails the whole sync.
+- `CREATE_DIR` succeeds when the directory already exists but still errors when a file occupies the name.
+- Delete replies carry the raw FatFs result in byte 3, so the Configurator reports the exact filesystem cause instead of a generic error.
+- Path buffers are bounds-checked before unlinking or recursing, so an overlong name can no longer delete a truncated neighbor.
+
+[Release link: v3.1.17](https://github.com/botio/duckyPad-herdr/releases/tag/v3.1.17)
+
 ## Herdr fork: v3.1.16
 
 - Physical key 15 accepts custom press and/or release duckyScript. With neither script installed, it retains the default hold-F9 behavior.

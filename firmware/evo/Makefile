@@ -85,6 +85,7 @@ OBJS := $(SRCS:%.c=$(BUILD)/%.o) $(BUILD)/gcc/startup_stm32f072xb.o
 check: all
 	python3 gcc/check_behavior.py
 	python3 gcc/check_herdr.py
+	python3 gcc/check_storage.py
 all: $(DFU)
 	python3 gcc/check_image.py $(ELF) $(DFU)
 

@@ -10,7 +10,7 @@
 - **按 agent 的按鍵 → 在 herdr 中聚焦（focus）那個 agent 的 pane。**
 - **第 15 顆是你的本機快捷鍵。** 預設送出 **F9**（平常白光，按下或按住時紅光），也可改成你自己指定的 duckyScript。
 - 鍵盤的 **OLED** 顯示已映射 agent 的簡短清單。
-- **Herdr 是可選的 profile，不再自動接管整台 pad。** 韌體 3.1.16+ 只在選到 Herdr profile 時接受 Bridge 的畫面與燈色；**+ / −** 照常切換 profile。
+- **Herdr 是可選的 profile，不再自動接管整台 pad。** 韌體 3.1.17+ 只在選到 Herdr profile 時接受 Bridge 的畫面與燈色；**+ / −** 照常切換 profile。
 
 不改动硬體。pad 端全部是韌體（pad 是一個 custom-HID 裝置，VID `0x483` /
 PID `0xd11c`）；這個外掛是一個小的 Rust daemon，負責跟 herdr 的 socket 和
@@ -113,21 +113,21 @@ daemon 仍會連到 herdr，並把牠*原本會*送出的每個 HID write 記進
 pad 端是原版 duckyPad EVO 韌體，加上四個 herdr custom-HID 指令
 （`34` RGB、`35` OLED、`36` Bridge 啟用狀態、`37` agent 按鍵）。
 
-**刷寫——不需要 Keil、不需要 toolchain。** repo 內附 **v3.1.16-herdr**，
+**刷寫——不需要 Keil、不需要 toolchain。** repo 內附 **v3.1.17-herdr**，
 用固定的 ARM GNU Toolchain 13.2.1 建置。主機回歸測試涵蓋 profile 控制權、
 RGB/OLED 前景繪製、SD 排他、切換、第 15 鍵 script-vs-F9 及 F9 釋放；這不等於
 實機 LED 波形驗證。
 插上 pad 時按住 `DFU` 鍵，然後：
 
 ```bash
-dfu-util --device 0483:df11 -a 0 -D ../firmware/duckypad_v3.1.16-herdr.dfu
+dfu-util --device 0483:df11 -a 0 -D ../firmware/duckypad_v3.1.17-herdr.dfu
 ```
 
-跑起來後，OLED boot 畫面會顯示 `duckyPad V3.1.16`。完整步驟（截圖、
+跑起來後，OLED boot 畫面會顯示 `duckyPad V3.1.17`。完整步驟（截圖、
 刷回 stock `../firmware/duckypad_v3.0.4.dfu` 的恢復方式）在主 repo：
 [`firmware_updates_and_version_history.md`](../firmware_updates_and_version_history.md)。
 
-韌體 3.1.16+ **需要 microSD 上有 Herdr profile，並且選中它**。
+韌體 3.1.17+ **需要 microSD 上有 Herdr profile，並且選中它**。
 只啟動 Bridge、沒有 SD 或沒有 profile，都不會接管 pad。
 既有 Bridge 使用相同的 HID 指令，不必為 profile 改動或可自訂的第 15 鍵重新安裝。
 
