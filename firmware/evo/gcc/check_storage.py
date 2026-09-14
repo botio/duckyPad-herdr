@@ -144,15 +144,17 @@ static void partial_delete(void) {
     file("/partial/blocked.txt");
     file("/partial/last.txt");
     assert(f_chmod("/partial/blocked.txt", AM_RDO, AM_RDO) == FR_OK);
-    command(HID_COMMAND_DELETE_DIR, "/partial", FR_DENIED);
-    absent("/partial/first.txt");
-    exists("/partial/blocked.txt", 0);
-    exists("/partial/last.txt", 0);
-    command(HID_COMMAND_DELETE_DIR, "/partial", FR_DENIED);
-    assert(f_chmod("/partial/blocked.txt", 0, AM_RDO) == FR_OK);
+    // A read-only file must not block a profile delete; it is cleared first.
     command(HID_COMMAND_DELETE_DIR, "/partial", FR_OK);
     absent("/partial");
     command(HID_COMMAND_DELETE_DIR, "/partial", FR_OK);
+
+    // A read-only directory itself is cleared before its final removal.
+    command(HID_COMMAND_CREATE_DIR, "/partialro", FR_OK);
+    file("/partialro/keep.txt");
+    assert(f_chmod("/partialro", AM_RDO, AM_RDO) == FR_OK);
+    command(HID_COMMAND_DELETE_DIR, "/partialro", FR_OK);
+    absent("/partialro");
 }
 static void creation_and_file_delete(void) {
     command(HID_COMMAND_CREATE_DIR, "/existing", FR_OK);
@@ -164,9 +166,6 @@ static void creation_and_file_delete(void) {
     command(HID_COMMAND_DELETE_DIR, "/ordinary.txt", FR_NO_PATH);
     exists("/ordinary.txt", 0);
     assert(f_chmod("/ordinary.txt", AM_RDO, AM_RDO) == FR_OK);
-    command(HID_COMMAND_DELETE_FILE, "/ordinary.txt", FR_DENIED);
-    exists("/ordinary.txt", 0);
-    assert(f_chmod("/ordinary.txt", 0, AM_RDO) == FR_OK);
     command(HID_COMMAND_DELETE_FILE, "/ordinary.txt", FR_OK);
     absent("/ordinary.txt");
     command(HID_COMMAND_DELETE_FILE, "/ordinary.txt", FR_OK);

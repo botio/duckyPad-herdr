@@ -93,6 +93,8 @@ uint8_t delete_node (
             fr = delete_node(path, sz_buff, my_fno);
         } else {                        /* Item is a file */
             fr = f_unlink(path);
+            if (fr == FR_DENIED && f_chmod(path, 0, AM_RDO) == FR_OK)
+                fr = f_unlink(path);   /* Read-only markers must not block deletion. */
         }
         if (fr != FR_OK) break;
     }
@@ -101,7 +103,11 @@ uint8_t delete_node (
     close_fr = f_closedir(&dir);
     if (fr == FR_OK) fr = close_fr;
 
-    if (fr == FR_OK) fr = f_unlink(path);  /* Delete the empty sub-directory */
+    if (fr == FR_OK) {
+        fr = f_unlink(path);  /* Delete the empty sub-directory */
+        if (fr == FR_DENIED && f_chmod(path, 0, AM_RDO) == FR_OK)
+            fr = f_unlink(path);
+    }
     return fr;
 }
 
@@ -803,6 +809,8 @@ void parse_hid_msg(uint8_t* this_msg)
     if(fr == FR_OK)
     {
       fr = f_unlink((char*)this_msg+3);
+      if(fr == FR_DENIED && f_chmod((char*)this_msg+3, 0, AM_RDO) == FR_OK)
+        fr = f_unlink((char*)this_msg+3);
       if(fr == FR_NO_FILE || fr == FR_NO_PATH)
         fr = FR_OK;
     }

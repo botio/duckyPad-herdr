@@ -4,6 +4,13 @@
 
 -----
 
+## Herdr fork: v3.1.18
+
+- Deleting a profile now clears read-only (AM_RDO) markers on its files and directories first, so factory-shipped or host-copied read-only profiles delete cleanly instead of failing with `FR_DENIED`.
+- `DELETE_FILE` applies the same read-only handling.
+
+[Release link: v3.1.18](https://github.com/botio/duckyPad-herdr/releases/tag/v3.1.18)
+
 ## Herdr fork: v3.1.17
 
 - SAVE deletes are idempotent: deleting an already-absent profile or file succeeds, so a retry after a partial delete no longer fails the whole sync.
