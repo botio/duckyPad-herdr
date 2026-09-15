@@ -121,6 +121,7 @@ static uint8_t herdr_keys_pending;
 static volatile uint8_t is_in_file_access_mode;
 static void herdr_display_task(void) {}
 void herdr_key_task(void) {}
+void herdr_hold_dark_until_bridge(void) {}
 static uint8_t queued_hid_msg[USBD_CUSTOMHID_OUTREPORT_BUF_SIZE];
 static volatile uint8_t queued_hid_msg_pending;
 static int is_busy;

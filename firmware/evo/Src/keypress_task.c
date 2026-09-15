@@ -374,6 +374,7 @@ void keypress_task(void)
   {
     hid_command_task();
     herdr_key_task();
+    herdr_hold_dark_until_bridge();
     delay_ms(herdr_mode ? 1 : 5);
 
     if(is_in_file_access_mode)

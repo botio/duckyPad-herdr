@@ -192,13 +192,17 @@ UART_HandleTypeDef huart1;
   OLED title shows H:name when Herdr mode is active; hard-clear agent LEDs
   after profile entry so SWCOLOR cannot remain lit without Bridge
 
+  3.1.24
+  While Herdr is selected and Bridge has not asserted cmd36, re-paint agent
+  keys black every 200ms so SWCOLOR/stale frames cannot stay green
+
 */
 
 uint32_t current_tick;
 
 uint8_t fw_version_major = 3;
 uint8_t fw_version_minor = 1;
-uint8_t fw_version_patch = 23;
+uint8_t fw_version_patch = 24;
 uint8_t dsvm_version = 2;
 
 /* USER CODE END PV */

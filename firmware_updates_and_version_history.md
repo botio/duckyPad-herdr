@@ -4,6 +4,12 @@
 
 -----
 
+## Herdr fork: v3.1.24
+
+- While a Herdr profile is selected and the Bridge has not asserted availability (cmd 36), agent keys are re-cleared to black every 200ms so SWCOLOR/stale frames cannot stay green.
+
+[Release link: v3.1.24](https://github.com/botio/duckyPad-herdr/releases/tag/v3.1.24)
+
 ## Herdr fork: v3.1.23
 
 - OLED title shows `H:profilename` when Herdr mode is actually active.

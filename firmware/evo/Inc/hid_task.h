@@ -70,6 +70,8 @@ uint8_t make_file_walk_hid_packet(char* file_name, char* profile_name, uint8_t* 
 extern volatile uint8_t is_in_file_access_mode;
 extern volatile uint8_t needs_gv_save;
 extern volatile uint8_t herdr_mode;
+extern uint8_t herdr_bridge_enabled;
+void herdr_hold_dark_until_bridge(void);
 
 #ifdef __cplusplus
 }

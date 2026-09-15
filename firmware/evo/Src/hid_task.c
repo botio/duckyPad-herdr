@@ -41,7 +41,7 @@ static uint8_t herdr_oled_msg[USBD_CUSTOMHID_OUTREPORT_BUF_SIZE];
 static volatile uint8_t herdr_rgb_pending, herdr_oled_pending;
 static volatile uint8_t herdr_host_update;
 static volatile uint8_t herdr_keys_pending;
-static uint8_t herdr_bridge_enabled;
+uint8_t herdr_bridge_enabled;
 // Mirror diagnostic: cumulative READ_FILE count, shown on the OLED.
 static uint32_t hid_read_progress;
 
@@ -184,6 +184,26 @@ static uint8_t f9_led_initialized;
 static uint8_t f9_led_down;
 static uint32_t f9_sample_since;
 static uint8_t f9_report[DP_HID_MSG_SIZE] = {HID_USAGE_ID_KEYBOARD};
+
+
+// Until the Bridge asserts cmd36, keep agent keys black. Profile SWCOLOR and
+// any stale frame must not look like a live agent board.
+void herdr_hold_dark_until_bridge(void)
+{
+  if(!herdr_mode || herdr_bridge_enabled || is_in_file_access_mode)
+    return;
+  static uint32_t last_paint;
+  uint32_t now = millis();
+  if(now - last_paint < 200)
+    return;
+  last_paint = now;
+  for(uint8_t i = 0; i < HERDR_F9_SWITCH; i++)
+    set_pixel_3color_update_buffer(i, 0, 0, 0);
+  if((curr_pf_info.dsb_exists[HERDR_F9_SWITCH]
+      & (DSB_ON_PRESS_EXISTS | DSB_ON_RELEASE_EXISTS)) == 0)
+    set_pixel_3color_update_buffer(HERDR_F9_SWITCH, 255, f9_down ? 0 : 255, f9_down ? 0 : 255);
+  neopixel_draw_current_buffer();
+}
 
 void herdr_key_task(void)
 {
