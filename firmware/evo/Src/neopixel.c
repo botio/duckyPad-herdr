@@ -10,7 +10,7 @@
 #include "hid_task.h"
 
 uint8_t ws_padding_buf[NEOPIXEL_PADDING_BUF_SIZE] __attribute__((aligned(4)));
-uint8_t ws_spi_buf[WS_SPI_BUF_SIZE] __attribute__((aligned(4)));
+uint8_t ws_chain_buf[WS_CHAIN_BYTES] __attribute__((aligned(4)));
 volatile uint8_t neopixel_spi_needs_restore;
 
 void spi_fastwrite_buf_size_even(uint8_t *pData, int count)
@@ -39,8 +39,6 @@ void neopixel_show(uint8_t* red, uint8_t* green, uint8_t* blue, uint8_t brightne
     HAL_SPI_DeInit(&hspi1);
     hspi1.Init.DataSize = SPI_DATASIZE_16BIT;
     hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
-    // NSS pulses between words float MOSI; DIN then reads 1s into G of every
-    // LED after the first (off→green, red→yellow).
     hspi1.Init.NSSPMode = SPI_NSS_PULSE_DISABLE;
     HAL_SPI_Init(&hspi1);
     neopixel_spi_needs_restore = 0;
@@ -50,35 +48,23 @@ void neopixel_show(uint8_t* red, uint8_t* green, uint8_t* blue, uint8_t brightne
   float brightness_percent = (float)brightness/100;
   for (int i = 0; i < NEOPIXEL_COUNT; ++i)
   {
-    red_after_brightness[i] = (float)red[i] * brightness_percent;
-    green_after_brightness[i] = (float)green[i] * brightness_percent;
-    blue_after_brightness[i] = (float)blue[i] * brightness_percent;
+    uint8_t r = (float)red[i] * brightness_percent;
+    uint8_t g = (float)green[i] * brightness_percent;
+    uint8_t b = (float)blue[i] * brightness_percent;
+    uint8_t *p = &ws_chain_buf[i * WS_SPI_BUF_SIZE];
+    for (int j = 0; j < 8; ++j)
+    {
+      p[j] = (g & (uint8_t)(1 << (7 - j))) ? WS_BIT_1 : WS_BIT_0;
+      p[8 + j] = (r & (uint8_t)(1 << (7 - j))) ? WS_BIT_1 : WS_BIT_0;
+      p[16 + j] = (b & (uint8_t)(1 << (7 - j))) ? WS_BIT_1 : WS_BIT_0;
+    }
   }
 
   __disable_irq();
   HAL_GPIO_WritePin(LED_DATA_EN_GPIO_Port, LED_DATA_EN_Pin, GPIO_PIN_SET);
   for (int r = 0; r < NEOPIXEL_RESET_WORDS; ++r)
     spi_fastwrite_buf_size_even(ws_padding_buf, NEOPIXEL_PADDING_BUF_SIZE);
-  // Feed DR without a compute gap between LEDs. Filling ws_spi_buf[24] between
-  // LEDs left MOSI idle-high long enough for G=0 to latch as 1.
-  for (int i = 0; i < NEOPIXEL_COUNT; ++i)
-  {
-    uint8_t rgb[3] = {
-      green_after_brightness[i],
-      red_after_brightness[i],
-      blue_after_brightness[i]
-    };
-    for (int c = 0; c < 3; ++c)
-    {
-      uint8_t v = rgb[c];
-      for (int j = 0; j < 8; j += 2)
-      {
-        ws_spi_buf[0] = (v & (uint8_t)(1 << (7 - j))) ? WS_BIT_1 : WS_BIT_0;
-        ws_spi_buf[1] = (v & (uint8_t)(1 << (6 - j))) ? WS_BIT_1 : WS_BIT_0;
-        spi_fastwrite_buf_size_even(ws_spi_buf, 2);
-      }
-    }
-  }
+  spi_fastwrite_buf_size_even(ws_chain_buf, WS_CHAIN_BYTES);
   for (int r = 0; r < NEOPIXEL_RESET_WORDS; ++r)
     spi_fastwrite_buf_size_even(ws_padding_buf, NEOPIXEL_PADDING_BUF_SIZE);
   while (!__HAL_SPI_GET_FLAG(&hspi1, SPI_FLAG_TXE))

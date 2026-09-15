@@ -51,6 +51,7 @@ def main():
 #define NEOPIXEL_PADDING_BUF_SIZE 4
 #define NEOPIXEL_RESET_WORDS 24
 #define WS_SPI_BUF_SIZE 24
+#define WS_CHAIN_BYTES (NEOPIXEL_COUNT * WS_SPI_BUF_SIZE)
 #define WS_BIT_0 0xc0
 #define WS_BIT_1 0xf8
 #define ANIMATION_NONE 0
@@ -95,7 +96,7 @@ static SPI_HandleTypeDef hspi1 = {&spi_regs, {0, 0}};
 static int spi_init_calls, spi_transmit_calls;
 static volatile uint8_t neopixel_spi_needs_restore;
 static uint8_t ws_padding_buf[NEOPIXEL_PADDING_BUF_SIZE] __attribute__((aligned(2)));
-static uint8_t ws_spi_buf[WS_SPI_BUF_SIZE] __attribute__((aligned(2)));
+static uint8_t ws_chain_buf[NEOPIXEL_COUNT * WS_SPI_BUF_SIZE] __attribute__((aligned(2)));
 static uint8_t red_after_brightness[NEOPIXEL_COUNT];
 static uint8_t green_after_brightness[NEOPIXEL_COUNT];
 static uint8_t blue_after_brightness[NEOPIXEL_COUNT];

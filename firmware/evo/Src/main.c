@@ -218,13 +218,17 @@ UART_HandleTypeDef huart1;
   Gapless WS2812 bitstream + NSS pulse off. Inter-LED MOSI idle-high made
   G=0 latch as 1: off looked all-green except key 3, red looked yellow.
 
+  3.1.30
+  Encode the whole 15-LED frame then one SPI write. Per-word function calls
+  in 3.1.29 emptied the FIFO (off→white, key 3 purple).
+
 */
 
 uint32_t current_tick;
 
 uint8_t fw_version_major = 3;
 uint8_t fw_version_minor = 1;
-uint8_t fw_version_patch = 29;
+uint8_t fw_version_patch = 30;
 uint8_t dsvm_version = 2;
 
 /* USER CODE END PV */

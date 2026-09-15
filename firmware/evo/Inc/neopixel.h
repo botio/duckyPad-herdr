@@ -14,6 +14,7 @@
 #define NEOPIXEL_COUNT 15
 
 #define WS_SPI_BUF_SIZE 24
+#define WS_CHAIN_BYTES (NEOPIXEL_COUNT * WS_SPI_BUF_SIZE)
 #define WS_BIT_0 0xc0
 #define WS_BIT_1 0xf8
 

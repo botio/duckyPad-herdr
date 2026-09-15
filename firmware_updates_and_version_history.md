@@ -4,6 +4,13 @@
 
 -----
 
+## Herdr fork: v3.1.30
+
+- Encode the full 15-LED WS2812 frame, then one SPI write. 3.1.29 called `spi_fastwrite` per 16-bit word and emptied the FIFO: off became white, key 3 purple.
+- NSS pulse remains disabled. No-SD holds keys off.
+
+[Release link: v3.1.30](https://github.com/botio/duckyPad-herdr/releases/tag/v3.1.30)
+
 ## Herdr fork: v3.1.29
 
 - WS2812 bitstream is gapless; SPI NSS pulse is disabled. An idle-high MOSI gap between LEDs made G=0 latch as 1: all-off looked green except key 3, and the 3.1.28 red test looked yellow except key 3.
