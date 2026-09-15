@@ -55,7 +55,7 @@ void draw_nosd(void)
   ssd1306_WriteString(oled_line_buf, Font_6x10, White);
 
   memset(oled_line_buf, 0, OLED_LINE_BUF_SIZE);
-  snprintf(oled_line_buf, OLED_LINE_BUF_SIZE, "NO-SD LEDs OFF");
+  snprintf(oled_line_buf, OLED_LINE_BUF_SIZE, "RED=FW  GREEN=HW");
   ssd1306_SetCursor(center_line(strlen(oled_line_buf)), 41);
   ssd1306_WriteString(oled_line_buf, Font_6x10, White);
 

@@ -210,13 +210,17 @@ UART_HandleTypeDef huart1;
   frame (including all-off). Skipping DeInit left 8-bit packing so zeros
   latched as green under Please Insert SD card.
 
+  3.1.28
+  No card: do not run mount_sd() (it 8-bit clocks SPI1 MOSI). Hold all keys
+  red so a successful flash is visible; green still means DIN is not ours.
+
 */
 
 uint32_t current_tick;
 
 uint8_t fw_version_major = 3;
 uint8_t fw_version_minor = 1;
-uint8_t fw_version_patch = 27;
+uint8_t fw_version_patch = 28;
 uint8_t dsvm_version = 2;
 
 /* USER CODE END PV */
@@ -312,10 +316,13 @@ int main(void)
   switch_init();
   printf("duckyPad EVO v%d.%d.%d\n", fw_version_major, fw_version_minor, fw_version_patch);
 
-  if(mount_sd())
+  // CARD_DETECT is pulled up; the socket grounds it when a card is inserted.
+  // No card: skip FatFs mount so SD 8-bit dummy clocks never hit NeoPixel MOSI.
+  if(HAL_GPIO_ReadPin(CARD_DETECT_GPIO_Port, CARD_DETECT_Pin) != GPIO_PIN_RESET
+      || mount_sd())
   {
     draw_nosd();
-    neopixel_off();
+    neopixel_fill(255, 0, 0);
     idle_loop();
   }
 

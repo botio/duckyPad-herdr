@@ -46,20 +46,18 @@ void strip_newline(char* line, uint32_t size)
 
 void idle_loop(void)
 {
-  // mount_sd() already ran on SPI1. Re-latch all-off now, then again every
-  // 200ms so a leaked WS2812 frame cannot sit green under "Please Insert SD".
-  neopixel_off();
-  uint32_t last_off = millis();
+  neopixel_fill(255, 0, 0);
+  uint32_t last = millis();
   while(1)
   {
     hid_command_task();
     herdr_key_task();
     delay_ms(1);
     uint32_t now = millis();
-    if(now - last_off >= 200)
+    if(now - last >= 200)
     {
-      last_off = now;
-      neopixel_off();
+      last = now;
+      neopixel_fill(255, 0, 0);
     }
   }
 }

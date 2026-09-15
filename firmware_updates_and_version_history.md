@@ -4,6 +4,13 @@
 
 -----
 
+## Herdr fork: v3.1.28
+
+- No-SD: skip `mount_sd()` when `CARD_DETECT` is high so SD 8-bit clocks never hit NeoPixel MOSI.
+- Diagnostic: no-SD holds all keys **red** and OLED shows `RED=FW  GREEN=HW`. If keys stay green, firmware is not driving the chain (or this build is not running).
+
+[Release link: v3.1.28](https://github.com/botio/duckyPad-herdr/releases/tag/v3.1.28)
+
 ## Herdr fork: v3.1.27
 
 - After SD SPI, fully `HAL_SPI_DeInit` and restore 16-bit NeoPixel mode before any frame (including all-off). A 16-bit `HAL_SPI_Init` without DeInit could keep 8-bit packing, so zeros latched as green under `Please Insert SD card`.
