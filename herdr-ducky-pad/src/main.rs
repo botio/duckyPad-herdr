@@ -78,7 +78,9 @@ struct Daemon {
     slot_map: SlotMap,
     /// User config (color palette + pinned slots); reloaded on every relist.
     config: config::HerdrConfig,
-    last_rgb: [u8; 45],
+    /// Last RGB actually delivered to a live HID handle. `None` means the next
+    /// push must refresh the pad (disconnect, or never synced).
+    last_rgb: Option<[u8; 45]>,
     last_oled: String,
     last_summary: String,
     last_relist: Instant,
@@ -98,7 +100,7 @@ impl Daemon {
             agents: Vec::new(),
             slot_map: SlotMap::default(),
             config,
-            last_rgb: [0; 45],
+            last_rgb: None,
             last_oled: String::new(),
             last_summary: String::new(),
             last_relist: Instant::now(),
@@ -121,12 +123,22 @@ impl Daemon {
         }
         let slots = self.slot_map.update(&self.agents, &self.config.pinned_slots);
         let rgb = model::rgb_frame(&slots, &self.config.colors);
-        if force || rgb != self.last_rgb {
+        // Empty agent lists must still refresh the pad: a prior diagnostic or
+        // stale frame can leave keys lit while OLED correctly shows nobody.
+        let rgb_changed = self.last_rgb.as_ref() != Some(&rgb);
+        if force || rgb_changed || self.agents.is_empty() {
             if let Err(e) = self.pad.set_rgb_frame(&rgb) {
                 log::warn!("set_rgb_frame: {e:#}");
+                self.last_rgb = None;
                 return;
             }
-            self.last_rgb = rgb;
+            // Only remember frames that reached a live device. Dry-run while
+            // waiting would otherwise suppress the first real clear after reconnect.
+            if self.pad.is_connected() {
+                self.last_rgb = Some(rgb);
+            } else {
+                self.last_rgb = None;
+            }
         }
 
         let oled = model::oled_text(&slots);
@@ -242,10 +254,15 @@ impl Daemon {
     /// service any key press.
     fn tick(&mut self) {
         let now = Instant::now();
+        if !self.pad.is_connected() {
+            // Drop cached frames so the next live open must repaint.
+            self.last_rgb = None;
+        }
         if self.pad.is_waiting() && now.duration_since(self.last_pad_retry) >= RELIST_PERIOD {
             self.last_pad_retry = now;
             if self.pad.try_reconnect() {
                 self.last_pad_sync = now;
+                self.last_rgb = None;
                 self.push_pad_state(true);
             }
         } else if self.pad.is_connected()

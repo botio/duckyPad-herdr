@@ -23,9 +23,12 @@ def report(command, payload=b""):
 
 
 TEXT = b"FIXED RGB TEST"
+# Empty Herdr display: agent keys off, key 15 white (firmware may override 15).
+CLEAR_RGB = report(34, bytes(14 * 3) + bytes((255, 255, 255)))
 REPORTS = {
     "mode": report(36, b"\x01"),
     "rgb": report(34, bytes((0, 64, 0)) * 14 + bytes((255, 255, 255))),
+    "clear": CLEAR_RGB,
     "oled": report(35, bytes((len(TEXT),)) + TEXT),
     "keys": report(37),
 }
@@ -145,11 +148,21 @@ def diagnose():
         try:
             subprocess.run(["launchctl", "kill", "SIGSTOP", service], check=True)
             run_phases(send)
+            # Leave the pad in the empty-Herdr baseline so residual diagnostic
+            # green cannot outlive the test if Bridge's HID handle is stale.
+            send("mode")
+            send("clear")
+            print("Cleared agent keys (black) before resuming Bridge.", flush=True)
         finally:
             result = subprocess.run(["launchctl", "kill", "SIGCONT", service], check=False)
             if result.returncode:
                 raise RuntimeError(f"Could not resume Bridge. Run: launchctl kill SIGCONT {service}")
-            print("\nBridge resumed. Its next heartbeat restores the Herdr display.", flush=True)
+            # Re-open HID cleanly after this process released the device.
+            subprocess.run(
+                ["launchctl", "kickstart", "-k", service],
+                check=False,
+            )
+            print("\nBridge restarted. Next poll should match the live agent list.", flush=True)
 
 
 def main():
