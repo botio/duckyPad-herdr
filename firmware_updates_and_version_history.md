@@ -4,6 +4,14 @@
 
 -----
 
+## Herdr fork: v3.1.20
+
+- NeoPixel chain is sent as one continuous SPI bitstream with a single `LED_DATA_EN` window, so USB/timer IRQs after an OLED I2C update cannot insert a mid-frame WS2812 reset (the “one white key jumps” failure under Herdr).
+- After each Herdr OLED refresh, the current LED buffer is redrawn.
+- Bridge heartbeats no longer force-rewrite an unchanged OLED frame.
+
+[Release link: v3.1.20](https://github.com/botio/duckyPad-herdr/releases/tag/v3.1.20)
+
 ## Herdr fork: v3.1.19
 
 - Profile deletion rewinds the directory scan after every removal and retries emptying if the final rmdir still reports non-empty, so sibling files are not skipped mid-delete.

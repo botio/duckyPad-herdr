@@ -98,6 +98,7 @@ static uint8_t red_after_brightness[NEOPIXEL_COUNT];
 static uint8_t green_after_brightness[NEOPIXEL_COUNT];
 static uint8_t blue_after_brightness[NEOPIXEL_COUNT];
 #define SPI_FLAG_TXE 1
+#define SPI_FLAG_BSY 2
 #define SPI_CR2_DS 0xf00
 #define SPI_DATASIZE_16BIT 0xf00
 #define SPI_BAUDRATEPRESCALER_4 0
@@ -105,7 +106,8 @@ static uint8_t blue_after_brightness[NEOPIXEL_COUNT];
 #define GPIO_PIN_RESET 0
 #define LED_DATA_EN_GPIO_Port NULL
 #define LED_DATA_EN_Pin 0
-#define __HAL_SPI_GET_FLAG(handle, flag) 1
+/* TXE always ready; BSY never set — matches an idle host SPI stub. */
+#define __HAL_SPI_GET_FLAG(handle, flag) ((flag) == SPI_FLAG_TXE)
 #define __disable_irq()
 #define __enable_irq()
 #define __get_PRIMASK() 0
@@ -138,7 +140,12 @@ int HAL_SPI_Transmit(SPI_HandleTypeDef *handle, uint8_t *data, uint16_t size, ui
   ++spi_transmit_calls;
   return 0;
 }
-void HAL_GPIO_WritePin(void *port, uint16_t pin, int state) {}
+static int led_data_en_high, led_data_en_low;
+void HAL_GPIO_WritePin(void *port, uint16_t pin, int state) {
+  (void)port; (void)pin;
+  if (state == GPIO_PIN_SET) ++led_data_en_high;
+  else ++led_data_en_low;
+}
 ''' + fastwrite + '\n' + show + r'''
 static led_animation neo_anime[NEOPIXEL_COUNT];
 static uint32_t frame_counter;
@@ -202,7 +209,9 @@ int main(void) {
   assert(spi_regs.DR == 0x7856);
   uint8_t pixel[NEOPIXEL_COUNT] = {0};
   neopixel_show(pixel, pixel, pixel, 100);
-  assert(spi_init_calls == 1 && spi_transmit_calls == 1);
+  /* One enable window for the whole chain; no per-LED HAL_SPI_Transmit. */
+  assert(spi_init_calls == 1 && led_data_en_high == 1 && led_data_en_low == 1);
+  assert(spi_transmit_calls == 0);
 
 
   /* Compare every supported calendar day to the host UTC oracle, including

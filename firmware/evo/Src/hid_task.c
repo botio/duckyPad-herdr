@@ -294,6 +294,9 @@ void herdr_set_oled_text(uint8_t* this_msg)
     x += Font_6x10.FontWidth;
   }
   ssd1306_UpdateScreen();
+  // OLED I2C is long; redraw LEDs after it so any mid-frame IRQ gap cannot
+  // leave a partial WS2812 latch visible until the next Bridge heartbeat.
+  neopixel_draw_current_buffer();
 }
 
 
