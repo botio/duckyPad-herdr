@@ -65,6 +65,7 @@ const F9_IDLE_COLOR: [u8; 3] = [255, 255, 255];
 #[derive(Debug, Clone)]
 pub struct Agent {
     pub pane_id: String,
+    pub tab_id: String,
     pub name: String,
     pub state: AgentState,
 }
@@ -82,6 +83,7 @@ impl Agent {
         let strf = |k: &str| v.get(k).and_then(|x| x.as_str()).unwrap_or("").to_string();
         Some(Agent {
             pane_id,
+            tab_id: strf("tab_id"),
             name: pick_name(
                 &strf("display_agent"),
                 &strf("name"),
@@ -279,6 +281,7 @@ mod tests {
     fn agent(pane: &str, state: AgentState) -> Agent {
         Agent {
             pane_id: pane.to_string(),
+            tab_id: String::new(),
             name: pane.to_string(),
             state,
         }

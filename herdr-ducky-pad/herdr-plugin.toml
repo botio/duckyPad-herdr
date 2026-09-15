@@ -17,7 +17,7 @@
 
 id = "ducky.pad-bridge"
 name = "duckyPad Herdr Bridge"
-version = "0.2.1"
+version = "0.2.3"
 min_herdr_version = "0.8.0"
 description = "Light a duckyPad from herdr agent state: 14 agents -> 14 keys, key color = state; key 15 is F9 (white at rest, red while pressed). Agent assignment is stable by pane_id."
 platforms = ["linux", "macos"]

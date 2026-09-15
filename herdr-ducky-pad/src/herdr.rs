@@ -85,6 +85,19 @@ impl HerdrClient {
     pub fn focus(&self, target: &str) -> Result<serde_json::Value> {
         self.call("agent.focus", &serde_json::json!({ "target": target }))
     }
+
+    /// Plugin-facing pane focus. Updates client views; `agent.focus` alone can
+    /// mark the pane seen without raising the visible tab.
+    pub fn plugin_pane_focus(&self, pane_id: &str) -> Result<serde_json::Value> {
+        self.call(
+            "plugin.pane.focus",
+            &serde_json::json!({ "pane_id": pane_id }),
+        )
+    }
+
+    pub fn tab_focus(&self, tab_id: &str) -> Result<serde_json::Value> {
+        self.call("tab.focus", &serde_json::json!({ "tab_id": tab_id }))
+    }
 }
 
 #[cfg(test)]

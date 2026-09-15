@@ -48,6 +48,9 @@ pub struct DuckyPad {
     forced_dry_run: bool,
     last_key_bits: u32,
     key_down: bool,
+    /// Consecutive cmd37 reports with no agent keys down. Bounce can report
+    /// 0 for one poll while still held; require a few zeros before unlatching.
+    key_zero_reads: u8,
 }
 
 impl DuckyPad {
@@ -63,6 +66,7 @@ impl DuckyPad {
                 forced_dry_run: true,
                 last_key_bits: 0,
                 key_down: false,
+                key_zero_reads: 0,
             });
         }
         match Self::open_device() {
@@ -73,6 +77,7 @@ impl DuckyPad {
                 forced_dry_run: false,
                 last_key_bits: 0,
                 key_down: false,
+                key_zero_reads: 0,
             }),
             Err(e) => {
                 log::warn!("duckyPad: device unavailable ({e}); waiting (will auto-retry)");
@@ -83,6 +88,7 @@ impl DuckyPad {
                     forced_dry_run: false,
                     last_key_bits: 0,
                     key_down: false,
+                    key_zero_reads: 0,
                 })
             }
         }
@@ -272,6 +278,7 @@ impl DuckyPad {
         let slot = self.read_key_event()?;
         if slot.is_some() {
             self.key_down = true;
+            self.key_zero_reads = 0;
         }
         Ok(slot)
     }
@@ -303,7 +310,12 @@ impl DuckyPad {
                 let bits = u32::from_le_bytes([response[3], response[4], response[5], response[6]]);
                 self.last_key_bits = bits;
                 if bits & 0x7fff == 0 {
-                    self.key_down = false;
+                    self.key_zero_reads = self.key_zero_reads.saturating_add(1);
+                    if self.key_zero_reads >= 3 {
+                        self.key_down = false;
+                    }
+                } else {
+                    self.key_zero_reads = 0;
                 }
                 Ok(())
             }
@@ -328,6 +340,7 @@ mod tests {
             forced_dry_run: true,
             last_key_bits: bits,
             key_down: false,
+            key_zero_reads: 0,
         }
     }
 

@@ -93,6 +93,8 @@ struct Daemon {
     /// After a short grace, stale Working greens are cleared so a dead herdr
     /// cannot leave the pad lit forever.
     herdr_down_since: Option<Instant>,
+    last_focus_at: Instant,
+    last_focus_slot: u8,
 }
 
 impl Daemon {
@@ -113,6 +115,10 @@ impl Daemon {
             need_relist: true,
             herdr_warn_at: None,
             herdr_down_since: None,
+            last_focus_at: Instant::now()
+                .checked_sub(Duration::from_secs(10))
+                .unwrap_or_else(Instant::now),
+            last_focus_slot: 0,
         }
     }
 
@@ -253,20 +259,37 @@ impl Daemon {
         if !(1..=AGENT_SLOTS as u8).contains(&slot) {
             return;
         }
-        let Some(target) = self
+        let now = Instant::now();
+        if slot == self.last_focus_slot
+            && now.duration_since(self.last_focus_at) < Duration::from_millis(400)
+        {
+            return;
+        }
+        let Some(agent) = self
             .slot_map
             .update(&self.agents, &self.config.pinned_slots)
             .get((slot - 1) as usize)
             .and_then(|s| *s)
-            .map(|a| a.pane_id.clone())
+            .cloned()
         else {
             log::info!("key {slot}: no agent in this slot");
             return;
         };
-        log::info!("key {slot} -> focus {target}");
-        if let Err(e) = self.client.focus(&target) {
-            log::warn!("focus({target}): {e:#}");
+        self.last_focus_slot = slot;
+        self.last_focus_at = now;
+        log::info!("key {slot} -> focus {} tab={}", agent.pane_id, agent.tab_id);
+        if !agent.tab_id.is_empty() {
+            if let Err(e) = self.client.tab_focus(&agent.tab_id) {
+                log::warn!("tab.focus({}): {e:#}", agent.tab_id);
+            }
         }
+        if let Err(e) = self.client.plugin_pane_focus(&agent.pane_id) {
+            log::debug!("plugin.pane.focus({}): {e:#}", agent.pane_id);
+        }
+        if let Err(e) = self.client.focus(&agent.pane_id) {
+            log::warn!("agent.focus({}): {e:#}", agent.pane_id);
+        }
+        raise_herdr_window();
     }
 
     /// One loop tick: reconnect or heartbeat the pad, maybe re-poll herdr, and
@@ -297,6 +320,38 @@ impl Daemon {
             self.poll_agents();
         }
         self.poll_key();
+    }
+}
+
+fn raise_herdr_window() {
+    #[cfg(target_os = "linux")]
+    {
+        let Ok(out) = std::process::Command::new("hyprctl")
+            .args(["clients", "-j"])
+            .output()
+        else {
+            return;
+        };
+        let Ok(clients) = serde_json::from_slice::<serde_json::Value>(&out.stdout) else {
+            return;
+        };
+        let Some(arr) = clients.as_array() else {
+            return;
+        };
+        for c in arr {
+            let class = c.get("class").and_then(|v| v.as_str()).unwrap_or("");
+            let title = c.get("title").and_then(|v| v.as_str()).unwrap_or("");
+            let addr = c.get("address").and_then(|v| v.as_str()).unwrap_or("");
+            let blob = format!("{class} {title}").to_ascii_lowercase();
+            if addr.is_empty() || !(blob.contains("herdr") || class.eq_ignore_ascii_case("herdr")) {
+                continue;
+            }
+            let _ = std::process::Command::new("hyprctl")
+                .args(["dispatch", "focuswindow", &format!("address:{addr}")])
+                .status();
+            log::info!("raised herdr window {addr} ({class})");
+            return;
+        }
     }
 }
 
