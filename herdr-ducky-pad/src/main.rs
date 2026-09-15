@@ -37,7 +37,7 @@ fn config_dir() -> std::path::PathBuf {
 }
 
 /// Resolve the herdr socket path: `HERDR_SOCKET_PATH` (injected by herdr),
-/// else a named session socket, else the default.
+/// else a named session socket, else the newest session socket, else default.
 fn socket_path() -> std::path::PathBuf {
     if let Ok(p) = std::env::var("HERDR_SOCKET_PATH") {
         return std::path::PathBuf::from(p);
@@ -46,7 +46,29 @@ fn socket_path() -> std::path::PathBuf {
     if let Ok(session) = std::env::var("HERDR_SESSION") {
         return base.join("sessions").join(session).join("herdr.sock");
     }
-    base.join("herdr.sock")
+    let default = base.join("herdr.sock");
+    if default.exists() {
+        return default;
+    }
+    // herdr named sessions put the socket under sessions/<id>/herdr.sock
+    let sessions = base.join("sessions");
+    if let Ok(entries) = std::fs::read_dir(&sessions) {
+        let mut best: Option<(std::time::SystemTime, std::path::PathBuf)> = None;
+        for entry in entries.flatten() {
+            let sock = entry.path().join("herdr.sock");
+            if let Ok(meta) = sock.metadata() {
+                if let Ok(mtime) = meta.modified() {
+                    if best.as_ref().map(|(t, _)| mtime > *t).unwrap_or(true) {
+                        best = Some((mtime, sock));
+                    }
+                }
+            }
+        }
+        if let Some((_, path)) = best {
+            return path;
+        }
+    }
+    default
 }
 struct Daemon {
     pad: DuckyPad,
@@ -63,6 +85,8 @@ struct Daemon {
     last_pad_retry: Instant,
     last_pad_sync: Instant,
     need_relist: bool,
+    /// Rate-limit "herdr.sock missing" warnings.
+    herdr_warn_at: Option<Instant>,
 }
 
 impl Daemon {
@@ -81,6 +105,7 @@ impl Daemon {
             last_pad_retry: Instant::now(),
             last_pad_sync: Instant::now(),
             need_relist: true,
+            herdr_warn_at: None,
         }
     }
 
@@ -135,6 +160,9 @@ impl Daemon {
         // Reload user config each relist so palette/pin edits apply without
         // a daemon restart.
         self.config = config::HerdrConfig::load();
+        // Re-resolve the socket each poll: herdr may start later, or move to a
+        // session path after the bridge launched.
+        self.client = HerdrClient::new(socket_path());
         match self.client.agent_list() {
             Ok(v) => {
                 self.agents = v
@@ -145,11 +173,25 @@ impl Daemon {
                     .unwrap_or_default();
                 self.note_agents();
                 self.push_pad_state(false);
+                self.herdr_warn_at = None;
             }
             Err(e) => {
                 // Keep the last-known agents (a brief herdr hiccup shouldn't
                 // darken the pad); the next successful relist refreshes them.
-                log::warn!("herdr agent.list: {e:#}");
+                // Rate-limit the warning — a missing herdr.sock used to spam
+                // once every 2s forever.
+                let now = Instant::now();
+                let should_log = self
+                    .herdr_warn_at
+                    .map(|t| now.duration_since(t) >= Duration::from_secs(30))
+                    .unwrap_or(true);
+                if should_log {
+                    log::warn!(
+                        "herdr agent.list: {e:#} (is herdr running? socket={})",
+                        socket_path().display()
+                    );
+                    self.herdr_warn_at = Some(now);
+                }
             }
         }
         self.last_relist = Instant::now();
