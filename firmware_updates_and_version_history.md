@@ -4,6 +4,13 @@
 
 -----
 
+## Herdr fork: v3.1.27
+
+- After SD SPI, fully `HAL_SPI_DeInit` and restore 16-bit NeoPixel mode before any frame (including all-off). A 16-bit `HAL_SPI_Init` without DeInit could keep 8-bit packing, so zeros latched as green under `Please Insert SD card`.
+- No-SD OLED shows `NO-SD LEDs OFF` so a successful flash is unambiguous.
+
+[Release link: v3.1.27](https://github.com/botio/duckyPad-herdr/releases/tag/v3.1.27)
+
 ## Herdr fork: v3.1.26
 
 - No-SD boot: after a failed `mount_sd()`, send a real NeoPixel all-off frame. `idle_loop` re-latches off every 200ms so SD SPI clocks that leaked into the shared MOSI line cannot stay green under `Please Insert SD card`.

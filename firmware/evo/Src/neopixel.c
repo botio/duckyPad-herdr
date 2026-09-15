@@ -11,6 +11,7 @@
 
 uint8_t ws_padding_buf[NEOPIXEL_PADDING_BUF_SIZE] __attribute__((aligned(4)));
 uint8_t ws_spi_buf[WS_SPI_BUF_SIZE] __attribute__((aligned(4)));
+volatile uint8_t neopixel_spi_needs_restore;
 
 void spi_fastwrite_buf_size_even(uint8_t *pData, int count)
 {
@@ -32,15 +33,16 @@ uint8_t blue_after_brightness[NEOPIXEL_COUNT];
 // make sure spi speed is between 8MHz and 10MHz
 void neopixel_show(uint8_t* red, uint8_t* green, uint8_t* blue, uint8_t brightness)
 {
-  // The WS2812 driver writes 16-bit words to the SPI DR; the F0 SPI must be in
-  // 16-bit mode for both bytes to transmit. The SD card shares SPI1 but needs
-  // 8-bit, so restore 16-bit only if the mode has been changed (i.e. after an
-  // SD access) -- avoids a per-frame re-init.
-  if ((hspi1.Instance->CR2 & SPI_CR2_DS) != SPI_DATASIZE_16BIT)
+  // Isolate DIN while SPI is rebuilt. SD DeInit leaves MOSI analog; a 16-bit
+  // re-init without DeInit can keep 8-bit packing so "all off" latches green.
+  HAL_GPIO_WritePin(LED_DATA_EN_GPIO_Port, LED_DATA_EN_Pin, GPIO_PIN_RESET);
+  if(neopixel_spi_needs_restore || (hspi1.Instance->CR2 & SPI_CR2_DS) != SPI_DATASIZE_16BIT)
   {
+    HAL_SPI_DeInit(&hspi1);
     hspi1.Init.DataSize = SPI_DATASIZE_16BIT;
     hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
     HAL_SPI_Init(&hspi1);
+    neopixel_spi_needs_restore = 0;
   }
   // HAL_SPI_Init leaves SPE clear; fast DR writes require the peripheral on.
   __HAL_SPI_ENABLE(&hspi1);

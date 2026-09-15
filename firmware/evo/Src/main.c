@@ -205,13 +205,18 @@ UART_HandleTypeDef huart1;
   mount, send a real all-off frame and keep the chain dark in idle_loop so
   leaked SD clocks cannot stay latched as green.
 
+  3.1.27
+  After SD SPI, fully DeInit and restore 16-bit NeoPixel mode before any
+  frame (including all-off). Skipping DeInit left 8-bit packing so zeros
+  latched as green under Please Insert SD card.
+
 */
 
 uint32_t current_tick;
 
 uint8_t fw_version_major = 3;
 uint8_t fw_version_minor = 1;
-uint8_t fw_version_patch = 26;
+uint8_t fw_version_patch = 27;
 uint8_t dsvm_version = 2;
 
 /* USER CODE END PV */

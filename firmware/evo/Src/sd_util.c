@@ -10,6 +10,7 @@
 #include "sd_util.h"
 #include <string.h>
 #include <stdint.h>
+#include "neopixel.h"
 
 /*
  * Code is split into 3 parts:
@@ -41,6 +42,7 @@ static void spi_set_speed(enum sd_speed speed)
   if(speed == SD_SPEED_25MHZ)
     hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
   HAL_SPI_Init(&hspi1);
+  neopixel_spi_needs_restore = 1;
   u8 dummy = 0;
   HAL_SPI_Transmit(&hspi1, &dummy, 1, 500);
 }

@@ -93,6 +93,7 @@ typedef struct { SPI_TypeDef *Instance; SPI_InitTypeDef Init; } SPI_HandleTypeDe
 static SPI_TypeDef spi_regs;
 static SPI_HandleTypeDef hspi1 = {&spi_regs, {0, 0}};
 static int spi_init_calls, spi_transmit_calls;
+static volatile uint8_t neopixel_spi_needs_restore;
 static uint8_t ws_padding_buf[NEOPIXEL_PADDING_BUF_SIZE] __attribute__((aligned(2)));
 static uint8_t ws_spi_buf[WS_SPI_BUF_SIZE] __attribute__((aligned(2)));
 static uint8_t red_after_brightness[NEOPIXEL_COUNT];
@@ -137,6 +138,7 @@ int HAL_SPI_Init(SPI_HandleTypeDef *handle) {
   handle->Instance->CR2 = (handle->Instance->CR2 & ~SPI_CR2_DS) | handle->Init.DataSize;
   return 0;
 }
+int HAL_SPI_DeInit(SPI_HandleTypeDef *handle) { (void)handle; return 0; }
 int HAL_SPI_Transmit(SPI_HandleTypeDef *handle, uint8_t *data, uint16_t size, uint32_t timeout) {
   assert(handle == &hspi1 && data == ws_padding_buf);
   assert(((uintptr_t)data & 1) == 0);
@@ -214,7 +216,7 @@ int main(void) {
   uint8_t pixel[NEOPIXEL_COUNT] = {0};
   neopixel_show(pixel, pixel, pixel, 100);
   /* One enable window for the whole chain; SPE must be on (no hang). */
-  assert(spi_init_calls == 1 && led_data_en_high == 1 && led_data_en_low == 1);
+  assert(spi_init_calls == 1 && led_data_en_high == 1 && led_data_en_low == 2);
   assert(spi_transmit_calls == 0);
   assert((spi_regs.CR1 & 0x40) != 0); /* SPE */
 

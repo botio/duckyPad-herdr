@@ -63,6 +63,7 @@ void halt_all_animations(void);
 
 extern const uint8_t brightness_index_to_percent_lookup[BRIGHTNESS_LEVEL_SIZE];
 extern volatile uint32_t frame_counter;
+extern volatile uint8_t neopixel_spi_needs_restore;
 
 #ifdef __cplusplus
 }
