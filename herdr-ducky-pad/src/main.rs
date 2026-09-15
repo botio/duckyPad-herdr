@@ -89,6 +89,10 @@ struct Daemon {
     need_relist: bool,
     /// Rate-limit "herdr.sock missing" warnings.
     herdr_warn_at: Option<Instant>,
+    /// First moment the current herdr outage began. `None` while herdr answers.
+    /// After a short grace, stale Working greens are cleared so a dead herdr
+    /// cannot leave the pad lit forever.
+    herdr_down_since: Option<Instant>,
 }
 
 impl Daemon {
@@ -108,6 +112,7 @@ impl Daemon {
             last_pad_sync: Instant::now(),
             need_relist: true,
             herdr_warn_at: None,
+            herdr_down_since: None,
         }
     }
 
@@ -188,13 +193,27 @@ impl Daemon {
                 self.note_agents();
                 self.push_pad_state(false);
                 self.herdr_warn_at = None;
+                self.herdr_down_since = None;
             }
             Err(e) => {
-                // Keep the last-known agents (a brief herdr hiccup shouldn't
-                // darken the pad); the next successful relist refreshes them.
+                // Brief herdr hiccups should not flicker the pad, but a dead or
+                // missing herdr must not keep replaying the last Working-green
+                // frame forever (that looked like "no agents, all green").
+                let now = Instant::now();
+                let down_since = *self.herdr_down_since.get_or_insert(now);
+                const HERDR_STALE_GRACE: Duration = Duration::from_secs(2);
+                if now.duration_since(down_since) >= HERDR_STALE_GRACE
+                    && (!self.agents.is_empty() || self.last_rgb.is_some())
+                {
+                    log::info!("herdr unavailable >=2s; clearing pad agent lights");
+                    self.agents.clear();
+                    self.slot_map = SlotMap::default();
+                    self.last_rgb = None;
+                    self.last_oled.clear();
+                    self.push_pad_state(true);
+                }
                 // Rate-limit the warning — a missing herdr.sock used to spam
                 // once every 2s forever.
-                let now = Instant::now();
                 let should_log = self
                     .herdr_warn_at
                     .map(|t| now.duration_since(t) >= Duration::from_secs(30))
