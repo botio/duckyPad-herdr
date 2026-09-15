@@ -4,6 +4,12 @@
 
 -----
 
+## Herdr fork: v3.1.21
+
+- Selecting a Herdr profile no longer applies profile `BG_COLOR`/`SWCOLOR` to agent keys. Keys 1–14 stay dark until the Bridge paints them; key 15 stays the local shortcut color. Fixes “all green on USB plug-in with no agents.”
+
+[Release link: v3.1.21](https://github.com/botio/duckyPad-herdr/releases/tag/v3.1.21)
+
 ## Herdr fork: v3.1.20
 
 - NeoPixel chain is sent as one continuous SPI bitstream with a single `LED_DATA_EN` window, so USB/timer IRQs after an OLED I2C update cannot insert a mid-frame WS2812 reset (the “one white key jumps” failure under Herdr).

@@ -162,6 +162,8 @@ int main(void) {
   physical_keys = 0x1ffff; poll_keys(keys); assert(key_reply == 0);
   process_keyevent(0, SW_EVENT_SHORT_PRESS); assert(macro_presses == 1);
   process_keyevent(SW_PLUS, SW_EVENT_RELEASE); assert(herdr_mode && current_profile_number == 2);
+  /* Herdr entry must not paint profile BG green onto empty agent keys. */
+  assert(visible[0][0] == 0 && visible[0][1] == 0 && visible[0][2] == 0);
   before = draws;
   receive(frame); receive(text); assert(draws == before && oled_draws == 0);
   /* Back-to-back USB frames coalesce without touching the live LED buffer. */

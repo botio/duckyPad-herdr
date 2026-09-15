@@ -151,6 +151,24 @@ void neopixel_off(void)
 // stop all animation, shows user keycolor, if none, show default key color.
 void neopixel_redraw_bg(void)
 {
+  if(herdr_mode)
+  {
+    for (int i = 0; i < HERDR_F9_SWITCH; ++i)
+    {
+      neo_anime[i].animation_type = ANIMATION_NONE;
+      set_pixel_3color(i, 0, 0, 0);
+    }
+    neo_anime[HERDR_F9_SWITCH].animation_type = ANIMATION_NONE;
+    if((curr_pf_info.dsb_exists[HERDR_F9_SWITCH]
+        & (DSB_ON_PRESS_EXISTS | DSB_ON_RELEASE_EXISTS)) == 0)
+      set_pixel_3color(HERDR_F9_SWITCH, 255, 255, 255);
+    else if(curr_pf_info.has_user_assigned_keycolor[HERDR_F9_SWITCH])
+      set_pixel_color(HERDR_F9_SWITCH, curr_pf_info.sw_color_user_assigned[HERDR_F9_SWITCH]);
+    else
+      set_pixel_color(HERDR_F9_SWITCH, curr_pf_info.sw_color_default[HERDR_F9_SWITCH]);
+    neopixel_draw_current_buffer();
+    return;
+  }
   for (int i = 0; i < NEOPIXEL_COUNT; ++i)
   {
     neo_anime[i].animation_type = ANIMATION_NONE;

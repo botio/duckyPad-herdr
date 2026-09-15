@@ -180,13 +180,17 @@ UART_HandleTypeDef huart1;
   Send the NeoPixel chain as one IRQ-safe bitstream with SPI explicitly
   enabled and a bounded BSY wait so boot cannot hang before USB/OLED init
 
+  3.1.21
+  Herdr profiles stay dark on agent keys until the Bridge paints them; do not
+  apply profile BG_COLOR/SWCOLOR on plug-in (looked like all-green with no agents)
+
 */
 
 uint32_t current_tick;
 
 uint8_t fw_version_major = 3;
 uint8_t fw_version_minor = 1;
-uint8_t fw_version_patch = 20;
+uint8_t fw_version_patch = 21;
 uint8_t dsvm_version = 2;
 
 /* USER CODE END PV */
