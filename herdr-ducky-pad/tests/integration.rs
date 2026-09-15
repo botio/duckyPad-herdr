@@ -174,7 +174,7 @@ fn full_loop_mock_socket() {
 
     let collected = lines.lock().clone();
     let dump = collected.join("\n");
-    assert!(dump.contains("cmd=35"), "OLED text never emitted:\n{dump}");
+    assert!(!dump.contains("cmd=35"), "OLED must stay firmware-owned:\n{dump}");
 
     let frames: Vec<Vec<u8>> = collected
         .iter()

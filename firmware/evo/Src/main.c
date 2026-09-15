@@ -222,13 +222,17 @@ UART_HandleTypeDef huart1;
   Encode the whole 15-LED frame then one SPI write. Per-word function calls
   in 3.1.29 emptied the FIFO (off→white, key 3 purple).
 
+  3.1.31
+  OLED title stays firmware-owned: H:<profile> in Herdr, profile name after
+  +/-. Ignore Bridge cmd35 so 1:omp lists cannot overwrite or stick.
+
 */
 
 uint32_t current_tick;
 
 uint8_t fw_version_major = 3;
 uint8_t fw_version_minor = 1;
-uint8_t fw_version_patch = 30;
+uint8_t fw_version_patch = 31;
 uint8_t dsvm_version = 2;
 
 /* USER CODE END PV */

@@ -282,41 +282,11 @@ void herdr_set_rgb_frame(uint8_t* this_msg)
   neopixel_draw_current_buffer();
 }
 
-// Render a line-oriented text blob (Font_6x10) onto the OLED. '\n' starts a new
-// line; the panel wraps/stops at its edges.
+// Title is firmware-owned (`H:<profile>`). Bridge cmd35 used to fill the
+// panel with `1:omp` lines and then stick after +/- left Herdr.
 void herdr_set_oled_text(uint8_t* this_msg)
 {
-  if(!herdr_mode || !herdr_bridge_enabled || is_in_file_access_mode)
-    return;
-  uint8_t len = this_msg[3];
-  if(len > HERDR_OLED_MAX_TEXT) len = HERDR_OLED_MAX_TEXT;
-  ssd1306_Fill(Black);
-  uint8_t x = 0;
-  uint8_t y = 0;
-  for(uint8_t i = 0; i < len; i++)
-  {
-    char ch = this_msg[4 + i];
-    if(ch == '\n')
-    {
-      x = 0;
-      y += Font_6x10.FontHeight;
-      if(y >= SSD1306_HEIGHT) break;
-      continue;
-    }
-    if(x + Font_6x10.FontWidth > 128)
-    {
-      x = 0;
-      y += Font_6x10.FontHeight;
-      if(y >= SSD1306_HEIGHT) break;
-    }
-    ssd1306_SetCursor(x, y);
-    ssd1306_WriteChar(ch, Font_6x10, White);
-    x += Font_6x10.FontWidth;
-  }
-  ssd1306_UpdateScreen();
-  // OLED I2C is long; redraw LEDs after it so any mid-frame IRQ gap cannot
-  // leave a partial WS2812 latch visible until the next Bridge heartbeat.
-  neopixel_draw_current_buffer();
+  (void)this_msg;
 }
 
 

@@ -152,16 +152,7 @@ impl Daemon {
             }
         }
 
-        let oled = model::oled_text(&slots);
-        // Heartbeats must not force an identical OLED rewrite: firmware OLED
-        // I2C is long and used to race NeoPixel timing when every sync redrew it.
-        if oled != self.last_oled {
-            if let Err(e) = self.pad.set_oled_text(&oled) {
-                log::warn!("set_oled_text: {e:#}");
-                return;
-            }
-            self.last_oled = oled;
-        }
+        // OLED title is firmware-owned (`H:<profile>`). Do not send cmd35.
     }
 
     /// Log a compact agent summary, but only when it actually changes (so a

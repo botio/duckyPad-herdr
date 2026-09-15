@@ -172,9 +172,9 @@ int main(void) {
   receive(frame); receive(text); assert(draws == before && oled_draws == 0);
   /* Back-to-back USB frames coalesce without touching the live LED buffer. */
   memset(frame + 3, 99, 45); receive(frame); assert(draws == before);
-  hid_command_task(); assert_frame(99); assert(oled_draws == 1);
-  /* RGB apply + post-OLED LED redraw. */
-  assert(draws == before + 2);
+  hid_command_task(); assert_frame(99); assert(oled_draws == 0);
+  /* RGB apply only; Bridge OLED is ignored. */
+  assert(draws == before + 1);
   assert(visible[14][0] == 255 && visible[14][1] == 255);
   poll_keys(keys); assert(key_reply == 0x3fff); /* No F9 or navigation bits. */
   process_keyevent(0, SW_EVENT_SHORT_PRESS); process_keyevent(0, SW_EVENT_RELEASE);
@@ -183,12 +183,12 @@ int main(void) {
   assert(animations == 0 && scans == 10);
   host[3] = 0; receive(host); hid_command_task();
   before = draws; receive(frame); receive(text); hid_command_task(); poll_keys(keys);
-  assert(herdr_mode && draws == before && oled_draws == 1 && key_reply == 0);
+  assert(herdr_mode && draws == before && oled_draws == 0 && key_reply == 0);
   host[3] = 1; receive(host); hid_command_task();
   is_in_file_access_mode = 1; before = draws;
   int replies_before = key_replies;
   receive(frame); receive(text); hid_command_task(); poll_keys(keys); herdr_key_task();
-  assert(draws == before && oled_draws == 1 && key_replies == replies_before);
+  assert(draws == before && oled_draws == 0 && key_replies == replies_before);
   is_in_file_access_mode = 0;
   /* A busy endpoint must not replay an unsent F9 press into a macro profile. */
   physical_keys = 1U << 14; usb_busy = 1; herdr_key_task(); now += 5; herdr_key_task();

@@ -235,9 +235,8 @@ pub fn rgb_frame(
     out
 }
 
-/// Build the OLED text (<= 56 bytes, `\n`-separated) listing the mapped agents
-/// as `N:name`. The 6x10 font fits 20 chars / 6 lines on the 128x64 panel; we
-/// stay well under the byte budget.
+/// Unused by the daemon: firmware owns the OLED title. Kept for tests.
+#[allow(dead_code)]
 pub fn oled_text(slots: &[Option<&Agent>]) -> String {
     const LINE_LEN: usize = 18;
     const MAX_LINES: usize = 4;
