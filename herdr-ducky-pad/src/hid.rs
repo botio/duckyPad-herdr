@@ -121,15 +121,18 @@ impl DuckyPad {
                 self.key_down = false;
                 true
             }
-            Err(_) => false,
+            Err(e) => {
+                log::warn!("duckyPad: reconnect failed: {e:#}");
+                false
+            }
         }
     }
 
     fn open_device() -> Result<(hidapi::HidApi, hidapi::HidDevice)> {
         let hid = hidapi::HidApi::new()?;
-        let info = hid
+        let mut cands: Vec<(std::ffi::CString, u16, u16)> = hid
             .device_list()
-            .find(|info| {
+            .filter(|info| {
                 matches_device(
                     info.vendor_id(),
                     info.product_id(),
@@ -137,27 +140,40 @@ impl DuckyPad {
                     cfg!(target_os = "macos"),
                 )
             })
-            .ok_or_else(|| {
-                if cfg!(target_os = "macos") {
-                    anyhow::anyhow!("HID device not found for {VID:04x}:{PID:04x}")
-                } else {
-                    anyhow::anyhow!(
-                        "custom HID usage 0x{CUSTOM_USAGE:04x} not found for {VID:04x}:{PID:04x}"
-                    )
+            .map(|info| (info.path().to_owned(), info.usage(), info.usage_page()))
+            .collect();
+        if cands.is_empty() {
+            return Err(if cfg!(target_os = "macos") {
+                anyhow::anyhow!("HID device not found for {VID:04x}:{PID:04x}")
+            } else {
+                anyhow::anyhow!(
+                    "custom HID usage 0x{CUSTOM_USAGE:04x} not found for {VID:04x}:{PID:04x}"
+                )
+            });
+        }
+        // Prefer the custom Report 4/5 collection when macOS lists it.
+        cands.sort_by_key(|(_, usage, _)| u16::from(*usage != CUSTOM_USAGE));
+        let mut last_err = None;
+        for (path, usage, usage_page) in &cands {
+            log::info!(
+                "duckyPad: opening HID usage_page=0x{usage_page:04x} usage=0x{usage:04x} path={}",
+                path.to_string_lossy()
+            );
+            match hid.open_path(path.as_c_str()) {
+                Ok(dev) => {
+                    log::info!("duckyPad: opened HID device");
+                    return Ok((hid, dev));
                 }
-            })?;
-        let path = info.path();
-        log::info!(
-            "duckyPad: opening HID usage_page=0x{:04x} usage=0x{:04x} path={}",
-            info.usage_page(),
-            info.usage(),
-            path.to_string_lossy()
-        );
-        let dev = hid
-            .open_path(path)
-            .map_err(|e| anyhow::anyhow!("open {}: {e}", path.to_string_lossy()))?;
-        log::info!("duckyPad: opened HID device");
-        Ok((hid, dev))
+                Err(e) => {
+                    let msg = format!("open {}: {e}", path.to_string_lossy());
+                    log::warn!("duckyPad: {msg}");
+                    last_err = Some(msg);
+                }
+            }
+        }
+        Err(anyhow::anyhow!(
+            last_err.unwrap_or_else(|| "HID open failed".into())
+        ))
     }
 
     /// Drop a stale HID handle after an I/O error. The main loop will retry
