@@ -1,6 +1,6 @@
 [package]
 name = "ducky-pad-bridge"
-version = "0.2.5"
+version = "0.2.6"
 edition = "2021"
 description = "herdr plugin that drives a duckyPad: 14 NeoPixel keys per herdr agent, colored by state; the final key is an F9 shortcut. Agent key assignment is stable per agent."
 

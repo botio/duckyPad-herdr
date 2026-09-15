@@ -36,39 +36,80 @@ fn config_dir() -> std::path::PathBuf {
     dirs::config_dir().unwrap_or_else(|| std::path::PathBuf::from("."))
 }
 
-/// Resolve the herdr socket path: `HERDR_SOCKET_PATH` (injected by herdr),
-/// else a named session socket, else the newest session socket, else default.
+/// herdr keeps `~/.config/herdr` even on macOS. `dirs::config_dir()` on macOS
+/// is `~/Library/Application Support`, which is the wrong tree.
+fn herdr_bases() -> Vec<std::path::PathBuf> {
+    let mut bases = Vec::new();
+    if let Some(home) = dirs::home_dir() {
+        bases.push(home.join(".config").join("herdr"));
+    }
+    let app = config_dir().join("herdr");
+    if !bases.iter().any(|b| b == &app) {
+        bases.push(app);
+    }
+    bases
+}
+
+fn newest_session_sock(sessions: &std::path::Path) -> Option<std::path::PathBuf> {
+    let mut best: Option<(std::time::SystemTime, std::path::PathBuf)> = None;
+    let Ok(entries) = std::fs::read_dir(sessions) else {
+        return None;
+    };
+    for entry in entries.flatten() {
+        let sock = entry.path().join("herdr.sock");
+        if let Ok(mtime) = sock.metadata().and_then(|m| m.modified()) {
+            if best.as_ref().map(|(t, _)| mtime > *t).unwrap_or(true) {
+                best = Some((mtime, sock));
+            }
+        }
+    }
+    best.map(|(_, p)| p)
+}
+
 fn socket_path() -> std::path::PathBuf {
     if let Ok(p) = std::env::var("HERDR_SOCKET_PATH") {
         return std::path::PathBuf::from(p);
     }
-    let base = config_dir().join("herdr");
+    let bases = herdr_bases();
     if let Ok(session) = std::env::var("HERDR_SESSION") {
-        return base.join("sessions").join(session).join("herdr.sock");
+        for base in &bases {
+            let sock = base.join("sessions").join(&session).join("herdr.sock");
+            if sock.exists() {
+                return sock;
+            }
+        }
+        return bases
+            .first()
+            .cloned()
+            .unwrap_or_else(|| std::path::PathBuf::from("."))
+            .join("sessions")
+            .join(session)
+            .join("herdr.sock");
     }
-    let default = base.join("herdr.sock");
-    if default.exists() {
-        return default;
+    for base in &bases {
+        let sock = base.join("herdr.sock");
+        if sock.exists() {
+            return sock;
+        }
     }
-    // herdr named sessions put the socket under sessions/<id>/herdr.sock
-    let sessions = base.join("sessions");
-    if let Ok(entries) = std::fs::read_dir(&sessions) {
-        let mut best: Option<(std::time::SystemTime, std::path::PathBuf)> = None;
-        for entry in entries.flatten() {
-            let sock = entry.path().join("herdr.sock");
-            if let Ok(meta) = sock.metadata() {
-                if let Ok(mtime) = meta.modified() {
-                    if best.as_ref().map(|(t, _)| mtime > *t).unwrap_or(true) {
-                        best = Some((mtime, sock));
-                    }
+    let mut newest: Option<(std::time::SystemTime, std::path::PathBuf)> = None;
+    for base in &bases {
+        if let Some(sock) = newest_session_sock(&base.join("sessions")) {
+            if let Ok(mtime) = sock.metadata().and_then(|m| m.modified()) {
+                if newest.as_ref().map(|(t, _)| mtime > *t).unwrap_or(true) {
+                    newest = Some((mtime, sock));
                 }
             }
         }
-        if let Some((_, path)) = best {
-            return path;
-        }
     }
-    default
+    if let Some((_, path)) = newest {
+        return path;
+    }
+    bases
+        .into_iter()
+        .next()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("herdr.sock")
 }
 struct Daemon {
     pad: DuckyPad,
@@ -207,7 +248,7 @@ impl Daemon {
                 let down_since = *self.herdr_down_since.get_or_insert(now);
                 const HERDR_STALE_GRACE: Duration = Duration::from_secs(2);
                 if now.duration_since(down_since) >= HERDR_STALE_GRACE
-                    && (!self.agents.is_empty() || self.last_rgb.is_some())
+                    && !self.agents.is_empty()
                 {
                     log::info!("herdr unavailable >=2s; clearing pad agent lights");
                     self.agents.clear();
