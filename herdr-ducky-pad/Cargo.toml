@@ -8,7 +8,7 @@ description = "herdr plugin that drives a duckyPad: 14 NeoPixel keys per herdr a
 anyhow = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-hidapi = "2"
+hidapi = { version = "2", features = ["macos-shared-device"] }
 libc = "0.2"
 dirs = "5"
 log = "0.4"

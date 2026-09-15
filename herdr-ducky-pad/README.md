@@ -103,6 +103,9 @@ Status & logs:
 On macOS, `hidutil list` may show duckyPad `0483:d11c` with primary
 Usage Page `1` / Usage `6` (Keyboard). The Bridge selects it by VID/PID:
 macOS opens the whole HID device, not a Windows-style collection handle.
+The `macos-shared-device` hidapi feature opens it without seizing the keyboard.
+Shared access does not bypass macOS privacy controls: grant Input Monitoring
+to the `ducky-pad-bridge` executable used by launchd, then restart the service.
 `herdr: ... agent(s)` confirms only the socket connection; `DRYRUN OUT`
 does not reach the pad. Look for `duckyPad: opened HID device`, then verify
 the display and agent-key response on the physical pad.
