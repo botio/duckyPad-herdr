@@ -42,6 +42,9 @@ void neopixel_show(uint8_t* red, uint8_t* green, uint8_t* blue, uint8_t brightne
     hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
     HAL_SPI_Init(&hspi1);
   }
+  // HAL_SPI_Init leaves SPE clear; fast DR writes require the peripheral on.
+  __HAL_SPI_ENABLE(&hspi1);
+
   float brightness_percent = (float)brightness/100;
   for (int i = 0; i < NEOPIXEL_COUNT; ++i)
   {
@@ -55,7 +58,8 @@ void neopixel_show(uint8_t* red, uint8_t* green, uint8_t* blue, uint8_t brightne
   // OLED I2C update then latch a partial frame and the white key appears to jump.
   __disable_irq();
   HAL_GPIO_WritePin(LED_DATA_EN_GPIO_Port, LED_DATA_EN_Pin, GPIO_PIN_SET);
-  spi_fastwrite_buf_size_even(ws_padding_buf, NEOPIXEL_PADDING_BUF_SIZE);
+  for (int r = 0; r < NEOPIXEL_RESET_WORDS; ++r)
+    spi_fastwrite_buf_size_even(ws_padding_buf, NEOPIXEL_PADDING_BUF_SIZE);
   for (int i = 0; i < NEOPIXEL_COUNT; ++i)
   {
     for (int j = 0; j < 8; ++j)
@@ -66,8 +70,14 @@ void neopixel_show(uint8_t* red, uint8_t* green, uint8_t* blue, uint8_t brightne
     }
     spi_fastwrite_buf_size_even(ws_spi_buf, WS_SPI_BUF_SIZE);
   }
-  spi_fastwrite_buf_size_even(ws_padding_buf, NEOPIXEL_PADDING_BUF_SIZE);
-  while (__HAL_SPI_GET_FLAG(&hspi1, SPI_FLAG_BSY))
+  for (int r = 0; r < NEOPIXEL_RESET_WORDS; ++r)
+    spi_fastwrite_buf_size_even(ws_padding_buf, NEOPIXEL_PADDING_BUF_SIZE);
+  while (!__HAL_SPI_GET_FLAG(&hspi1, SPI_FLAG_TXE))
+    ;
+  // Bound the busy wait: SPE-off or a stuck SR must not brick boot.
+  for (uint32_t guard = 0;
+       guard < 10000 && __HAL_SPI_GET_FLAG(&hspi1, SPI_FLAG_BSY);
+       ++guard)
     ;
   HAL_GPIO_WritePin(LED_DATA_EN_GPIO_Port, LED_DATA_EN_Pin, GPIO_PIN_RESET);
   __enable_irq();

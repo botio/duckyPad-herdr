@@ -7,6 +7,7 @@
 ## Herdr fork: v3.1.20
 
 - NeoPixel chain is sent as one continuous SPI bitstream with a single `LED_DATA_EN` window, so USB/timer IRQs after an OLED I2C update cannot insert a mid-frame WS2812 reset (the “one white key jumps” failure under Herdr).
+- SPI is explicitly enabled before bitbang writes; the BSY wait is bounded so a stuck status register cannot hang boot before USB/OLED init.
 - After each Herdr OLED refresh, the current LED buffer is redrawn.
 - Bridge heartbeats no longer force-rewrite an unchanged OLED frame.
 

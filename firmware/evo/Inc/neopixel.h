@@ -7,8 +7,10 @@
 
 #include "stm32f0xx_hal.h"
 
-// ≥50 µs of SPI idle (0x00) at the NeoPixel clock for a WS2812 latch/reset.
-#define NEOPIXEL_PADDING_BUF_SIZE 96
+// Trailing/leading idle words for WS2812 reset (≥50 µs at NeoPixel SPI clock).
+// Kept small: zero words are repeated instead of a large BSS buffer.
+#define NEOPIXEL_PADDING_BUF_SIZE 4
+#define NEOPIXEL_RESET_WORDS 24
 #define NEOPIXEL_COUNT 15
 
 #define WS_SPI_BUF_SIZE 24

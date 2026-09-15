@@ -177,8 +177,8 @@ UART_HandleTypeDef huart1;
   Restore 8-bit SPI for SD after NeoPixel switches it to 16-bit
 
   3.1.20
-  Send the NeoPixel chain as one IRQ-safe bitstream; OLED no longer leaves a
-  partial latch that makes a white key appear to jump during Herdr updates
+  Send the NeoPixel chain as one IRQ-safe bitstream with SPI explicitly
+  enabled and a bounded BSY wait so boot cannot hang before USB/OLED init
 
 */
 

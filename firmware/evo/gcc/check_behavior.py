@@ -49,6 +49,7 @@ def main():
 #define THREE 3
 #define NEOPIXEL_COUNT 1
 #define NEOPIXEL_PADDING_BUF_SIZE 4
+#define NEOPIXEL_RESET_WORDS 24
 #define WS_SPI_BUF_SIZE 24
 #define WS_BIT_0 0xc0
 #define WS_BIT_1 0xf8
@@ -86,7 +87,7 @@ static RTC_DateTypeDef clock_date;
 void HAL_RTC_GetTime(void *p, RTC_TimeTypeDef *t, int f) { *t = clock_time; }
 void HAL_RTC_GetDate(void *p, RTC_DateTypeDef *d, int f) { *d = clock_date; }
 ''' + rtc + '\n' + local + '\n' + color_type + r'''
-typedef struct { uint32_t CR2, DR; } SPI_TypeDef;
+typedef struct { uint32_t CR1, CR2, DR; } SPI_TypeDef;
 typedef struct { uint32_t DataSize, BaudRatePrescaler; } SPI_InitTypeDef;
 typedef struct { SPI_TypeDef *Instance; SPI_InitTypeDef Init; } SPI_HandleTypeDef;
 static SPI_TypeDef spi_regs;
@@ -99,6 +100,7 @@ static uint8_t green_after_brightness[NEOPIXEL_COUNT];
 static uint8_t blue_after_brightness[NEOPIXEL_COUNT];
 #define SPI_FLAG_TXE 1
 #define SPI_FLAG_BSY 2
+#define SPI_CR1_SPE 0x40
 #define SPI_CR2_DS 0xf00
 #define SPI_DATASIZE_16BIT 0xf00
 #define SPI_BAUDRATEPRESCALER_4 0
@@ -108,6 +110,7 @@ static uint8_t blue_after_brightness[NEOPIXEL_COUNT];
 #define LED_DATA_EN_Pin 0
 /* TXE always ready; BSY never set — matches an idle host SPI stub. */
 #define __HAL_SPI_GET_FLAG(handle, flag) ((flag) == SPI_FLAG_TXE)
+#define __HAL_SPI_ENABLE(handle) ((handle)->Instance->CR1 |= SPI_CR1_SPE)
 #define __disable_irq()
 #define __enable_irq()
 #define __get_PRIMASK() 0
@@ -209,9 +212,10 @@ int main(void) {
   assert(spi_regs.DR == 0x7856);
   uint8_t pixel[NEOPIXEL_COUNT] = {0};
   neopixel_show(pixel, pixel, pixel, 100);
-  /* One enable window for the whole chain; no per-LED HAL_SPI_Transmit. */
+  /* One enable window for the whole chain; SPE must be on (no hang). */
   assert(spi_init_calls == 1 && led_data_en_high == 1 && led_data_en_low == 1);
   assert(spi_transmit_calls == 0);
+  assert((spi_regs.CR1 & 0x40) != 0); /* SPE */
 
 
   /* Compare every supported calendar day to the host UTC oracle, including
