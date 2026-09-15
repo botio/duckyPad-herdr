@@ -88,7 +88,7 @@ void HAL_RTC_GetTime(void *p, RTC_TimeTypeDef *t, int f) { *t = clock_time; }
 void HAL_RTC_GetDate(void *p, RTC_DateTypeDef *d, int f) { *d = clock_date; }
 ''' + rtc + '\n' + local + '\n' + color_type + r'''
 typedef struct { uint32_t CR1, CR2, DR; } SPI_TypeDef;
-typedef struct { uint32_t DataSize, BaudRatePrescaler; } SPI_InitTypeDef;
+typedef struct { uint32_t DataSize, BaudRatePrescaler, NSSPMode; } SPI_InitTypeDef;
 typedef struct { SPI_TypeDef *Instance; SPI_InitTypeDef Init; } SPI_HandleTypeDef;
 static SPI_TypeDef spi_regs;
 static SPI_HandleTypeDef hspi1 = {&spi_regs, {0, 0}};
@@ -105,6 +105,7 @@ static uint8_t blue_after_brightness[NEOPIXEL_COUNT];
 #define SPI_CR2_DS 0xf00
 #define SPI_DATASIZE_16BIT 0xf00
 #define SPI_BAUDRATEPRESCALER_4 0
+#define SPI_NSS_PULSE_DISABLE 0
 #define GPIO_PIN_SET 1
 #define GPIO_PIN_RESET 0
 #define LED_DATA_EN_GPIO_Port NULL

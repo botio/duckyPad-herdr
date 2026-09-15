@@ -46,7 +46,7 @@ void strip_newline(char* line, uint32_t size)
 
 void idle_loop(void)
 {
-  neopixel_fill(255, 0, 0);
+  neopixel_off();
   uint32_t last = millis();
   while(1)
   {
@@ -57,7 +57,7 @@ void idle_loop(void)
     if(now - last >= 200)
     {
       last = now;
-      neopixel_fill(255, 0, 0);
+      neopixel_off();
     }
   }
 }

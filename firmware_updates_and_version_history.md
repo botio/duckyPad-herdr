@@ -4,6 +4,13 @@
 
 -----
 
+## Herdr fork: v3.1.29
+
+- WS2812 bitstream is gapless; SPI NSS pulse is disabled. An idle-high MOSI gap between LEDs made G=0 latch as 1: all-off looked green except key 3, and the 3.1.28 red test looked yellow except key 3.
+- No-SD again holds all keys off.
+
+[Release link: v3.1.29](https://github.com/botio/duckyPad-herdr/releases/tag/v3.1.29)
+
 ## Herdr fork: v3.1.28
 
 - No-SD: skip `mount_sd()` when `CARD_DETECT` is high so SD 8-bit clocks never hit NeoPixel MOSI.

@@ -33,18 +33,18 @@ uint8_t blue_after_brightness[NEOPIXEL_COUNT];
 // make sure spi speed is between 8MHz and 10MHz
 void neopixel_show(uint8_t* red, uint8_t* green, uint8_t* blue, uint8_t brightness)
 {
-  // Isolate DIN while SPI is rebuilt. SD DeInit leaves MOSI analog; a 16-bit
-  // re-init without DeInit can keep 8-bit packing so "all off" latches green.
   HAL_GPIO_WritePin(LED_DATA_EN_GPIO_Port, LED_DATA_EN_Pin, GPIO_PIN_RESET);
   if(neopixel_spi_needs_restore || (hspi1.Instance->CR2 & SPI_CR2_DS) != SPI_DATASIZE_16BIT)
   {
     HAL_SPI_DeInit(&hspi1);
     hspi1.Init.DataSize = SPI_DATASIZE_16BIT;
     hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
+    // NSS pulses between words float MOSI; DIN then reads 1s into G of every
+    // LED after the first (off→green, red→yellow).
+    hspi1.Init.NSSPMode = SPI_NSS_PULSE_DISABLE;
     HAL_SPI_Init(&hspi1);
     neopixel_spi_needs_restore = 0;
   }
-  // HAL_SPI_Init leaves SPE clear; fast DR writes require the peripheral on.
   __HAL_SPI_ENABLE(&hspi1);
 
   float brightness_percent = (float)brightness/100;
@@ -55,28 +55,34 @@ void neopixel_show(uint8_t* red, uint8_t* green, uint8_t* blue, uint8_t brightne
     blue_after_brightness[i] = (float)blue[i] * brightness_percent;
   }
 
-  // One continuous bitstream for the whole chain. Re-enabling IRQs or dropping
-  // LED_DATA_EN between LEDs inserts a WS2812 reset; long handlers after an
-  // OLED I2C update then latch a partial frame and the white key appears to jump.
   __disable_irq();
   HAL_GPIO_WritePin(LED_DATA_EN_GPIO_Port, LED_DATA_EN_Pin, GPIO_PIN_SET);
   for (int r = 0; r < NEOPIXEL_RESET_WORDS; ++r)
     spi_fastwrite_buf_size_even(ws_padding_buf, NEOPIXEL_PADDING_BUF_SIZE);
+  // Feed DR without a compute gap between LEDs. Filling ws_spi_buf[24] between
+  // LEDs left MOSI idle-high long enough for G=0 to latch as 1.
   for (int i = 0; i < NEOPIXEL_COUNT; ++i)
   {
-    for (int j = 0; j < 8; ++j)
+    uint8_t rgb[3] = {
+      green_after_brightness[i],
+      red_after_brightness[i],
+      blue_after_brightness[i]
+    };
+    for (int c = 0; c < 3; ++c)
     {
-      ws_spi_buf[j] = (green_after_brightness[i] & (1 << (7 - j))) ? WS_BIT_1 : WS_BIT_0;
-      ws_spi_buf[8 + j] = (red_after_brightness[i] & (1 << (7 - j))) ? WS_BIT_1 : WS_BIT_0;
-      ws_spi_buf[16 + j] = (blue_after_brightness[i] & (1 << (7 - j))) ? WS_BIT_1 : WS_BIT_0;
+      uint8_t v = rgb[c];
+      for (int j = 0; j < 8; j += 2)
+      {
+        ws_spi_buf[0] = (v & (uint8_t)(1 << (7 - j))) ? WS_BIT_1 : WS_BIT_0;
+        ws_spi_buf[1] = (v & (uint8_t)(1 << (6 - j))) ? WS_BIT_1 : WS_BIT_0;
+        spi_fastwrite_buf_size_even(ws_spi_buf, 2);
+      }
     }
-    spi_fastwrite_buf_size_even(ws_spi_buf, WS_SPI_BUF_SIZE);
   }
   for (int r = 0; r < NEOPIXEL_RESET_WORDS; ++r)
     spi_fastwrite_buf_size_even(ws_padding_buf, NEOPIXEL_PADDING_BUF_SIZE);
   while (!__HAL_SPI_GET_FLAG(&hspi1, SPI_FLAG_TXE))
     ;
-  // Bound the busy wait: SPE-off or a stuck SR must not brick boot.
   for (uint32_t guard = 0;
        guard < 10000 && __HAL_SPI_GET_FLAG(&hspi1, SPI_FLAG_BSY);
        ++guard)

@@ -214,13 +214,17 @@ UART_HandleTypeDef huart1;
   No card: do not run mount_sd() (it 8-bit clocks SPI1 MOSI). Hold all keys
   red so a successful flash is visible; green still means DIN is not ours.
 
+  3.1.29
+  Gapless WS2812 bitstream + NSS pulse off. Inter-LED MOSI idle-high made
+  G=0 latch as 1: off looked all-green except key 3, red looked yellow.
+
 */
 
 uint32_t current_tick;
 
 uint8_t fw_version_major = 3;
 uint8_t fw_version_minor = 1;
-uint8_t fw_version_patch = 28;
+uint8_t fw_version_patch = 29;
 uint8_t dsvm_version = 2;
 
 /* USER CODE END PV */
@@ -322,7 +326,7 @@ int main(void)
       || mount_sd())
   {
     draw_nosd();
-    neopixel_fill(255, 0, 0);
+    neopixel_off();
     idle_loop();
   }
 
