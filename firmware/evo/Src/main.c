@@ -230,13 +230,18 @@ UART_HandleTypeDef huart1;
   Bridge cmd35 is 14×4 packed key names. Herdr OLED stays H:<profile> with
   agent names in the key grid instead of "-" or a 1:omp dump.
 
+  3.1.33
+  No SD card (or no valid profiles): boot Herdr anyway so the Bridge can
+  drive lights, OLED names, and agent keys. +/- is a no-op until a card
+  with profiles is present.
+
 */
 
 uint32_t current_tick;
 
 uint8_t fw_version_major = 3;
 uint8_t fw_version_minor = 1;
-uint8_t fw_version_patch = 32;
+uint8_t fw_version_patch = 33;
 uint8_t dsvm_version = 2;
 
 /* USER CODE END PV */
@@ -337,18 +342,16 @@ int main(void)
   if(HAL_GPIO_ReadPin(CARD_DETECT_GPIO_Port, CARD_DETECT_Pin) != GPIO_PIN_RESET
       || mount_sd())
   {
-    draw_nosd();
-    neopixel_off();
-    idle_loop();
+    herdr_boot_without_storage();
+    keypress_task();
   }
 
   ensure_new_profile_format();
 
   if(scan_profiles())
   {
-    draw_noprofile();
-    neopixel_off();
-    idle_loop();
+    herdr_boot_without_storage();
+    keypress_task();
   }
   
   load_settings(&dp_settings);

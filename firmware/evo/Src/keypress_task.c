@@ -260,6 +260,8 @@ void process_keyevent(uint8_t swid, uint8_t event_type)
   }
   if(is_plus_minus_button(swid) && event_type == SW_EVENT_LONG_PRESS)
   {
+    if(herdr_no_storage)
+      return;
     settings_menu();
     goto_profile(current_profile_number);
     return;
@@ -382,7 +384,8 @@ void keypress_task(void)
 
     if(needs_gv_save)
     {
-      save_gv();
+      if(!herdr_no_storage)
+        save_gv();
       needs_gv_save = 0;
     }
 

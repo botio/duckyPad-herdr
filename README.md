@@ -18,13 +18,13 @@ Using a [turing-complete scripting language](https://dekunukem.github.io/duckyPa
 **English:** duckyPad can also serve as a **herdr light board**: keys 1–14
 light one herdr agent each (working green, blocked red, done blue, idle dim),
 key 15 is a local F9 shortcut, and the OLED shows `H:Herdr` plus a grid of
-agent names. Flash firmware **v3.1.32-herdr**, add a Herdr profile in
+agent names. Flash firmware **v3.1.33-herdr**, add a Herdr profile in
 Configurator 5.0.29+, then run `herdr-ducky-pad/install.sh`.
 [Install / usage →](herdr-ducky-pad/README.md)
 
 **繁體中文：**duckyPad 也可以當 **herdr 光板**：1–14 鍵各對一個 herdr agent
 （working 綠、blocked 紅、done 藍、idle 暗），第 15 鍵是本機 F9，OLED 顯示
-`H:Herdr` 和格子裡的 agent 名。刷韌體 **v3.1.32-herdr**，用 Configurator
+`H:Herdr` 和格子裡的 agent 名。刷韌體 **v3.1.33-herdr**，用 Configurator
 5.0.29+ 寫入 Herdr profile，再跑 `herdr-ducky-pad/install.sh`。
 [安裝與使用 →](herdr-ducky-pad/README.zh-TW.md)
 

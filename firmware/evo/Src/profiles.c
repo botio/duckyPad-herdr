@@ -393,6 +393,8 @@ void goto_profile(uint8_t profile_number)
 
 void goto_next_profile(void)
 {
+  if(herdr_no_storage)
+    return;
   uint8_t new_profile_number = current_profile_number;
   while(1)
   {
@@ -407,6 +409,8 @@ void goto_next_profile(void)
 
 void goto_prev_profile(void)
 {
+  if(herdr_no_storage)
+    return;
   uint8_t new_profile_number = current_profile_number;
   while(1)
   {

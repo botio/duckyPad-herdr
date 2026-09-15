@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 #include "input_task.h"
 #include "sd_util.h"
 #include "ui_task.h"
@@ -24,6 +25,7 @@ uint8_t hid_tx_buf[HID_TX_BUF_SIZE];
 volatile uint8_t needs_gv_save;
 volatile uint8_t is_in_file_access_mode;
 volatile uint8_t herdr_mode = 0;
+uint8_t herdr_no_storage = 0;
 #define SD_WALK_STATE_IDLE 0
 #define SD_WALK_STATE_NEW_PROFILE_DIR 1
 #define SD_WALK_STATE_NEW_FILE 2
@@ -202,6 +204,19 @@ void herdr_hold_dark_until_bridge(void)
       & (DSB_ON_PRESS_EXISTS | DSB_ON_RELEASE_EXISTS)) == 0)
     set_pixel_3color_update_buffer(HERDR_F9_SWITCH, 255, f9_down ? 0 : 255, f9_down ? 0 : 255);
   neopixel_draw_current_buffer();
+}
+void herdr_boot_without_storage(void)
+{
+  herdr_no_storage = 1;
+  herdr_mode = 1;
+  herdr_bridge_enabled = 0;
+  memset(&curr_pf_info, 0, sizeof curr_pf_info);
+  curr_pf_info.is_herdr = 1;
+  curr_pf_info.sw_color_default[HERDR_F9_SWITCH][0] = 255;
+  curr_pf_info.sw_color_default[HERDR_F9_SWITCH][1] = 255;
+  curr_pf_info.sw_color_default[HERDR_F9_SWITCH][2] = 255;
+  herdr_hold_dark_until_bridge();
+  draw_current_profile();
 }
 
 void herdr_key_task(void)
@@ -717,6 +732,12 @@ void parse_hid_msg(uint8_t* this_msg)
   */
   else if(command_type == HID_COMMAND_DUMP_SD)
   {
+    if(herdr_no_storage)
+    {
+      hid_tx_buf[2] = HID_RESPONSE_GENERIC_ERROR;
+      send_hid_cmd_response(hid_tx_buf);
+      return;
+    }
     enter_file_access_mode();
     sd_walk(hid_tx_buf);
     send_hid_cmd_response(hid_tx_buf);

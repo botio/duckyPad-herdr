@@ -18,19 +18,19 @@ Turn a [duckyPad](https://github.com/dekuNukem/duckyPad) (2020 / OG) into a **he
 
 | # | Need | If missing |
 |---|------|------------|
-| 1 | duckyPad **plugged in over USB**, microSD **inserted** | Dark pad, or `Please Insert SD card` |
+| 1 | duckyPad **plugged in over USB** | 3.1.33+ is a Herdr light board with no SD; a card is only needed for normal macro profiles |
 | 2 | **herdr actually running** | Lights clear; log says `herdr.sock: No such file` |
-| 3 | Firmware **3.1.32-herdr** | Older firmware will not draw grid names or accept the Bridge |
+| 3 | Firmware **3.1.33-herdr** | Older firmware will not draw grid names or accept the Bridge |
 | 4 | Configurator **5.0.29+** writes a **Herdr profile**, pad **+ / −** selects it | Bridge can connect and still not take over the display |
 | 5 | This Bridge (`./install.sh`) | Pad stays dark (key 15 may still be white) |
 
-Current versions: **firmware 3.1.32-herdr**, **Bridge 0.2.8**.
+Current versions: **firmware 3.1.33-herdr**, **Bridge 0.2.8**.
 
 ---
 
 ## First install (in order, do not skip)
 
-### 1. Flash firmware 3.1.32-herdr
+### 1. Flash firmware 3.1.33-herdr
 
 Install [`dfu-util`](http://dfu-util.sourceforge.net/):
 
@@ -46,13 +46,13 @@ sudo apt install dfu-util
 2. From **this repo's root**:
 
 ```bash
-dfu-util --device 0483:df11 -a 0 -D firmware/duckypad_v3.1.32-herdr.dfu
+dfu-util --device 0483:df11 -a 0 -D firmware/duckypad_v3.1.33-herdr.dfu
 ```
 
 3. Press **RESET** on the pad (or unplug/replug)
-4. Boot OLED should show **`duckyPad V3.1.32`**
+4. Boot OLED should show **`duckyPad V3.1.33`**
 
-Prebuilt file: [GitHub Release v3.1.32](https://github.com/botio/duckyPad-herdr/releases/tag/v3.1.32).  
+Prebuilt file: [GitHub Release v3.1.32](https://github.com/botio/duckyPad-herdr/releases/tag/v3.1.33).  
 Stock recovery and screenshots: [`firmware_updates_and_version_history.md`](../firmware_updates_and_version_history.md).
 
 ### 2. Write a Herdr profile
@@ -183,7 +183,7 @@ After a macOS reinstall: toggle **Input Monitoring** for DuckyPadBridge.app off/
 |---------|--------|
 | OLED is not `H:…` | Herdr profile not selected (**+ / −**), or Configurator never SAVE'd |
 | Grid is all `-`, keys dark | HID not open, or herdr down. Read the log |
-| Log has `opened HID` but pad still dark | Firmware is not 3.1.32-herdr, or Herdr profile not selected |
+| Log has `opened HID` but pad still dark | Firmware is not 3.1.33-herdr; with an SD, select the Herdr profile. No SD auto-enters Herdr |
 | `DRYRUN OUT` | No pad, or HID open failed. On Mac, Input Monitoring first |
 | `0xE00002E2 not permitted` | Add **DuckyPadBridge.app**, not the CLI path |
 | `herdr.sock: No such file` | Start herdr. The Bridge looks in `~/.config/herdr/herdr.sock` |

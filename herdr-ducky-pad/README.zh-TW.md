@@ -18,19 +18,19 @@
 
 | # | 要有什麼 | 沒有會怎樣 |
 |---|---------|-----------|
-| 1 | duckyPad **插著 USB**，microSD **插著** | pad 不亮、或卡在「Please Insert SD card」 |
+| 1 | duckyPad **插著 USB** | 沒插 SD 時 3.1.33+ 仍會當 Herdr 燈板；有 SD 才能用一般巨集 profile |
 | 2 | **herdr 視窗已開著** | 燈會被清掉，log 寫 `herdr.sock: No such file` |
-| 3 | 韌體 **3.1.32-herdr** | 舊韌體不會畫格子名、也不吃 Bridge |
+| 3 | 韌體 **3.1.33-herdr** | 舊韌體不會畫格子名、也不吃 Bridge |
 | 4 | Configurator **5.0.29+** 寫入 **Herdr profile**，pad 用 **+ / − 選到它** | Bridge 連上也不會接管畫面 |
 | 5 | 這個 Bridge（`./install.sh`） | pad 停在全暗（第 15 鍵仍可能是白的） |
 
-目前版本：**韌體 3.1.32-herdr**、**Bridge 0.2.8**。
+目前版本：**韌體 3.1.33-herdr**、**Bridge 0.2.8**。
 
 ---
 
 ## 第一次安裝（照順序，不要跳）
 
-### 1. 刷韌體 3.1.32-herdr
+### 1. 刷韌體 3.1.33-herdr
 
 需要 [`dfu-util`](http://dfu-util.sourceforge.net/)：
 
@@ -46,13 +46,13 @@ sudo apt install dfu-util
 2. 在 **這個 repo 的根目錄** 執行：
 
 ```bash
-dfu-util --device 0483:df11 -a 0 -D firmware/duckypad_v3.1.32-herdr.dfu
+dfu-util --device 0483:df11 -a 0 -D firmware/duckypad_v3.1.33-herdr.dfu
 ```
 
 3. 按 pad 的 **RESET**（或拔掉重插）
-4. OLED 開機應顯示 **`duckyPad V3.1.32`**
+4. OLED 開機應顯示 **`duckyPad V3.1.33`**
 
-預編檔也在 [GitHub Release v3.1.32](https://github.com/botio/duckyPad-herdr/releases/tag/v3.1.32)。  
+預編檔也在 [GitHub Release v3.1.32](https://github.com/botio/duckyPad-herdr/releases/tag/v3.1.33)。  
 刷回原廠、截圖逐步說明：[`firmware_updates_and_version_history.md`](../firmware_updates_and_version_history.md)。
 
 ### 2. 寫入 Herdr profile
@@ -184,7 +184,7 @@ macOS 重裝後：**輸入監控**把 DuckyPadBridge.app 關掉再開。
 |------|------|
 | OLED 不是 `H:…` | pad 沒選到 Herdr profile（**+ / −**），或 Configurator 沒 SAVE |
 | 格子全是 `-`、鍵不亮 | Bridge 沒開到 HID，或 herdr 沒開。看 log |
-| log 有 `opened HID` 但仍全暗 | 韌體不是 3.1.32-herdr，或沒選 Herdr profile |
+| log 有 `opened HID` 但仍全暗 | 韌體不是 3.1.33-herdr；有 SD 時還要選 Herdr profile。沒插 SD 則自動 Herdr |
 | `DRYRUN OUT` | 當沒插 pad，或 HID 開失敗。Mac 先查輸入監控 |
 | `0xE00002E2 not permitted` | 加入 **DuckyPadBridge.app**，不是 CLI 路徑 |
 | `herdr.sock: No such file` | 先開 herdr。Bridge 會找 `~/.config/herdr/herdr.sock` |

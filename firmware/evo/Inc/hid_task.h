@@ -72,7 +72,9 @@ extern volatile uint8_t is_in_file_access_mode;
 extern volatile uint8_t needs_gv_save;
 extern volatile uint8_t herdr_mode;
 extern uint8_t herdr_bridge_enabled;
+extern uint8_t herdr_no_storage;
 void herdr_hold_dark_until_bridge(void);
+void herdr_boot_without_storage(void);
 
 #ifdef __cplusplus
 }

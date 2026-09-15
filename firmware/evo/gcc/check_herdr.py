@@ -268,7 +268,14 @@ int main(void) {
   parse_profile_config_line("HERDR_PROFILE 10", &curr_pf_info); assert(!curr_pf_info.is_herdr);
   parse_profile_config_line("HERDR_PROFILE 1", &curr_pf_info); assert(curr_pf_info.is_herdr);
   parse_profile_config_line("HERDR_PROFILE 0", &curr_pf_info); assert(!curr_pf_info.is_herdr);
-  puts("PASS Herdr profile authority, foreground/coalesced RGB+OLED, host enable/disable, file-access exclusion, +/- wrap, macro isolation, timer gate, F9 busy/exit/release, key15 press/release scripts and local LED ownership, exact marker");
+  herdr_boot_without_storage();
+  assert(herdr_mode && herdr_no_storage && herdr_bridge_enabled == 0);
+  host[3] = 1; receive(host); hid_command_task();
+  assert(herdr_bridge_enabled == 1);
+  memset(frame + 3, 42, 45);
+  receive(frame); hid_command_task();
+  assert_frame(42);
+  puts("PASS Herdr profile authority, foreground/coalesced RGB+OLED, host enable/disable, file-access exclusion, +/- wrap, macro isolation, timer gate, F9 busy/exit/release, key15 press/release scripts and local LED ownership, exact marker, no-SD Bridge");
 }
 '''
     with tempfile.TemporaryDirectory(prefix="duckypad-herdr-check-") as temporary:

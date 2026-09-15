@@ -4,6 +4,13 @@
 
 -----
 
+
+## Herdr fork: v3.1.33
+
+- No SD card (or no valid profiles): boot as a Herdr light board so the Bridge can drive keys, OLED names, and F9. +/- does nothing until a card with profiles is present.
+
+[Release link: v3.1.33](https://github.com/botio/duckyPad-herdr/releases/tag/v3.1.33)
+
 ## Herdr fork: v3.1.32
 
 - Herdr OLED keeps `H:<profile>` and fills the 15-key grid with Bridge agent names (4 chars, empty stays `-`). No more `1:omp` dump.

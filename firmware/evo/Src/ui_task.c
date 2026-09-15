@@ -161,7 +161,7 @@ void draw_current_profile(void)
   /* H: prefix proves HERDR_PROFILE 1 is active (name alone is not enough). */
   if(herdr_mode)
     snprintf(oled_line_buf, OLED_LINE_BUF_SIZE, "H:%s",
-             profile_name_list[current_profile_number]);
+             herdr_no_storage ? "Herdr" : profile_name_list[current_profile_number]);
   else
     snprintf(oled_line_buf, OLED_LINE_BUF_SIZE, "%s",
              profile_name_list[current_profile_number]);
