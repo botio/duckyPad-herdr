@@ -166,7 +166,7 @@ impl DuckyPad {
                 }
                 Err(e) => {
                     let msg = format!("open {}: {e}", path.to_string_lossy());
-                    log::warn!("duckyPad: {msg}");
+                    log::debug!("duckyPad: {msg}");
                     last_err = Some(msg);
                 }
             }

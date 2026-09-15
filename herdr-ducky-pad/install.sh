@@ -81,6 +81,40 @@ EOF
     echo "  logs:    journalctl --user -u $SERVICE -f"
     ;;
   Darwin)
+    # launchd CLI binaries cannot get Input Monitoring (IOKit 0xE00002E2).
+    # A background .app is what System Settings lists and TCC binds to.
+    APP_DIR="$HOME/Library/Application Support/ducky-pad-bridge/DuckyPadBridge.app"
+    MACOS_DIR="$APP_DIR/Contents/MacOS"
+    mkdir -p "$MACOS_DIR"
+    cat > "$APP_DIR/Contents/Info.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>$LABEL</string>
+    <key>CFBundleName</key>
+    <string>DuckyPadBridge</string>
+    <key>CFBundleExecutable</key>
+    <string>ducky-pad-bridge</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>LSBackgroundOnly</key>
+    <true/>
+    <key>LSUIElement</key>
+    <true/>
+</dict>
+</plist>
+PLIST
+    cp "$BIN" "$MACOS_DIR/ducky-pad-bridge"
+    chmod +x "$MACOS_DIR/ducky-pad-bridge"
+    APP_BIN="$MACOS_DIR/ducky-pad-bridge"
+    if command -v codesign >/dev/null 2>&1; then
+      codesign --force --deep --sign - --identifier "$LABEL" "$APP_DIR" 2>/dev/null || true
+    fi
+    echo "   app  $APP_DIR"
     PLIST_DIR="$HOME/Library/LaunchAgents"
     PLIST="$PLIST_DIR/$LABEL.plist"
     mkdir -p "$PLIST_DIR"
@@ -93,7 +127,7 @@ EOF
     <string>$LABEL</string>
     <key>ProgramArguments</key>
     <array>
-        <string>$BIN</string>
+        <string>$APP_BIN</string>
     </array>
     <key>EnvironmentVariables</key>
     <dict>
@@ -123,6 +157,11 @@ EOF
     echo "Installed and running (launchd LaunchAgent '$LABEL')."
     echo "  status:  launchctl list | grep ducky-pad-bridge"
     echo "  logs:    tail -f /tmp/ducky-pad-bridge.log"
+    echo
+    echo "macOS Input Monitoring:"
+    echo "  System Settings → Privacy & Security → Input Monitoring"
+    echo "  add  $APP_DIR"
+    echo "  (CLI binaries get IOKit 0xE00002E2 not permitted; this .app is what TCC needs.)"
     ;;
   *)
     echo "error: unsupported platform '$os' (this script supports Linux and macOS)." >&2

@@ -99,8 +99,10 @@ macOS 的 `hidutil list` 可能把 duckyPad `0483:d11c` 列為主要
 Usage Page `1`／Usage `6`（Keyboard）。Bridge 在 macOS 依 VID/PID
 選擇裝置，因為開啟的是整個 HID 裝置，不是 Windows 的獨立 collection。
 啟用 hidapi 的 `macos-shared-device`，以共享模式開啟，不獨占鍵盤。
-共享模式不會略過 macOS 隱私權控管：請授予 launchd 實際執行的
-`ducky-pad-bridge` 輸入監控權限，再重新啟動服務。
+共享模式不會略過 macOS 隱私權控管。`install.sh` 會把 daemon 裝進
+`~/Library/Application Support/ducky-pad-bridge/DuckyPadBridge.app`
+（純 CLI 給 launchd 跑會得到 IOKit `0xE00002E2 not permitted`）。
+請把 **DuckyPadBridge.app** 加進「輸入監控」，每次重裝後關掉再開一次。
 `herdr: ... agent(s)` 只證明 socket 已連線；`DRYRUN OUT` 不會送到 pad。
 請確認出現 `duckyPad: opened HID device`，再以實體 pad 的畫面及 agent
 按鍵反應確認通訊。
