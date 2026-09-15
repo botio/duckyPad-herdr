@@ -4,6 +4,13 @@
 
 -----
 
+## Herdr fork: v3.1.22
+
+- On Herdr profile load, agent-key default/user colors are forced to black (and again after SPS restore) so leftover `BG_COLOR`/`SWCOLOR` cannot light keys 1–14 before the Bridge connects.
+- `neopixel_redraw_bg` in Herdr mode still paints only the local key-15 rest color.
+
+[Release link: v3.1.22](https://github.com/botio/duckyPad-herdr/releases/tag/v3.1.22)
+
 ## Herdr fork: v3.1.21
 
 - Selecting a Herdr profile no longer applies profile `BG_COLOR`/`SWCOLOR` to agent keys. Keys 1–14 stay dark until the Bridge paints them; key 15 stays the local shortcut color. Fixes “all green on USB plug-in with no agents.”

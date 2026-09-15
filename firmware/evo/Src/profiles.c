@@ -228,7 +228,9 @@ void parse_profile_config_line(char* this_line, profile_cache* this_profile)
   }
   else if(strncmp(cmd_HERDR_PROFILE, this_line, strlen(cmd_HERDR_PROFILE)) == 0)
   {
-    this_profile->is_herdr = strcmp(this_line, "HERDR_PROFILE 1") == 0;
+    char* curr = goto_next_arg(this_line, this_line + strlen(this_line));
+    // Exact marker remains "HERDR_PROFILE 1" (value must be 1, not any non-zero).
+    this_profile->is_herdr = curr != NULL && atoi(curr) == 1;
   }
 }
 
@@ -317,6 +319,25 @@ uint8_t load_profile(uint8_t profile_number)
       curr_pf_info.sw_color_keydown[i][2] = 0;
     }
   }
+  // Herdr light-board: agent keys have no profile color of their own. Zero them
+  // here so a leftover BG_COLOR/SWCOLOR (often green) cannot light the pad
+  // before the Bridge connects — even if SPS user colors load afterward.
+  if(curr_pf_info.is_herdr)
+  {
+    for (size_t i = 0; i < HERDR_F9_SWITCH; i++)
+    {
+      curr_pf_info.sw_color_default[i][0] = 0;
+      curr_pf_info.sw_color_default[i][1] = 0;
+      curr_pf_info.sw_color_default[i][2] = 0;
+      curr_pf_info.sw_color_keydown[i][0] = 0;
+      curr_pf_info.sw_color_keydown[i][1] = 0;
+      curr_pf_info.sw_color_keydown[i][2] = 0;
+      curr_pf_info.has_user_assigned_keycolor[i] = 0;
+      curr_pf_info.sw_color_user_assigned[i][0] = 0;
+      curr_pf_info.sw_color_user_assigned[i][1] = 0;
+      curr_pf_info.sw_color_user_assigned[i][2] = 0;
+    }
+  }
   return 0;
 }
 
@@ -338,8 +359,23 @@ void goto_profile(uint8_t profile_number)
   if(goto_profile_without_updating_rgb_LED(profile_number))
     return;
   load_persistent_state();
+  // SPS may reintroduce user colors; strip agent-key colors again for Herdr.
+  if(herdr_mode)
+  {
+    for (size_t i = 0; i < HERDR_F9_SWITCH; i++)
+    {
+      curr_pf_info.has_user_assigned_keycolor[i] = 0;
+      curr_pf_info.sw_color_user_assigned[i][0] = 0;
+      curr_pf_info.sw_color_user_assigned[i][1] = 0;
+      curr_pf_info.sw_color_user_assigned[i][2] = 0;
+      curr_pf_info.sw_color_default[i][0] = 0;
+      curr_pf_info.sw_color_default[i][1] = 0;
+      curr_pf_info.sw_color_default[i][2] = 0;
+    }
+  }
   neopixel_redraw_bg();
 }
+
 
 void goto_next_profile(void)
 {

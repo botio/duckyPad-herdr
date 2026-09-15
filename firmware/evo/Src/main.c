@@ -184,13 +184,17 @@ UART_HandleTypeDef huart1;
   Herdr profiles stay dark on agent keys until the Bridge paints them; do not
   apply profile BG_COLOR/SWCOLOR on plug-in (looked like all-green with no agents)
 
+  3.1.22
+  Zero Herdr agent-key colors at profile load and after SPS restore; tolerate
+  HERDR_PROFILE values other than the exact string "HERDR_PROFILE 1"
+
 */
 
 uint32_t current_tick;
 
 uint8_t fw_version_major = 3;
 uint8_t fw_version_minor = 1;
-uint8_t fw_version_patch = 21;
+uint8_t fw_version_patch = 22;
 uint8_t dsvm_version = 2;
 
 /* USER CODE END PV */
