@@ -2,207 +2,241 @@
 
 > 繁體中文版 → [README.zh-TW.md](README.zh-TW.md)
 
-A [herdr](https://herdr.dev) plugin that drives a **duckyPad** (STM32F072 EVO
-macropad) from herdr's agent state.
+Turn a [duckyPad](https://github.com/dekuNukem/duckyPad) (2020 / OG) into a **herdr light board**:
 
-- **Up to 14 herdr agents → 14 lit keys.** Each of the first 14 NeoPixel keys
-  represents one agent; the key's **color is that agent's state**.
-- **Press an agent key → focus that agent's pane** in herdr.
-- **Key 15 is your local shortcut key.** It sends **F9** by default (white at
-  rest, red while pressed or held) or runs any duckyScript you assign to it.
-- The pad's **OLED** shows a short list of the mapped agents.
-- **Herdr is a selectable profile**, not a whole-device takeover. Firmware 3.1.20+ only accepts Bridge display data while that profile is selected; **+ / −** still switches profiles.
-
-No hardware changes. Everything on the pad side is firmware (the pad is a
-custom-HID device, VID `0x483` / PID `0xd11c`); this plugin is a small Rust
-daemon that talks to herdr's socket and to the pad.
-
-The duckyPad set up as a herdr light board:
+- **Keys 1–14** = up to 14 herdr agents, color = state
+- **Press a key** → herdr focuses that agent
+- **Key 15** = local shortcut (**F9** by default)
+- **OLED** = `H:Herdr` plus a 15-cell grid of agent names (4 chars; empty `-`)
+- Herdr is **one profile**. **+ / −** leaves it and restores normal macros
 
 ![duckyPad as a herdr light board](img/duckypad-herdr.webp)
 
-## Default states & colors
+---
 
-| state     | color          |
-|-----------|----------------|
-| `blocked` | red            |
-| `working` | green          |
-| `done`    | blue           |
-| `unknown` | amber          |
-| `idle`    | dim gray       |
+## You need all five
 
-Configurator **5.0.29+ → HERDR → STATUS COLORS → SAVE COLORS** edits all five states without a JSON editor. The Bridge reloads the host-wide palette every two seconds and preserves pinned agents. Linux uses `$XDG_CONFIG_HOME/duckyPad/herdr.json` (default `~/.config`); macOS uses `~/Library/Application Support/duckyPad/herdr.json`.
+| # | Need | If missing |
+|---|------|------------|
+| 1 | duckyPad **plugged in over USB**, microSD **inserted** | Dark pad, or `Please Insert SD card` |
+| 2 | **herdr actually running** | Lights clear; log says `herdr.sock: No such file` |
+| 3 | Firmware **3.1.32-herdr** | Older firmware will not draw grid names or accept the Bridge |
+| 4 | Configurator **5.0.29+** writes a **Herdr profile**, pad **+ / −** selects it | Bridge can connect and still not take over the display |
+| 5 | This Bridge (`./install.sh`) | Pad stays dark (key 15 may still be white) |
 
-Create a profile using **ADD HERDR PROFILE**, then **SAVE** it to the pad. Select it with the pad's **+ / −** buttons. The SD marker is exactly `HERDR_PROFILE 1`; a name alone does not enable Herdr. Returning to a macro profile restores its normal behavior. The next Bridge heartbeat supplies the active Herdr display, even if no agent changed.
+Current versions: **firmware 3.1.32-herdr**, **Bridge 0.2.8**.
 
-With **more than 14 agents**, the first 14 in herdr's list order light
-keys; overflow agents stay unlit until an agent slot frees.
+---
 
-## How it works
+## First install (in order, do not skip)
 
-- **Firmware** (`../firmware/evo`): four custom-HID commands (`34` RGB
-  frame, `35` OLED text, `36` Bridge availability, `37` get agent-key state).
-  The selected Herdr profile reserves keys 1–14 for agent focus; key 15 is
-  the local shortcut — **F9 by default**, or the macro in its `key15.dsb`.
-  Command 37 returns only agent-key bits, or zero outside Herdr. During SD
-  file access, key polls remain unanswered to avoid interleaving with storage
-  responses.
-- **This daemon**: a 10ms main loop. It re-polls herdr's Unix socket with a
-  one-shot `agent.list` every 2s (the socket handles **one request per
-  connection**, so there is no persistent push subscription), keeps a
-  picture of the agents, and on any change pushes the RGB frame + OLED text
-  to the pad. On every tick it polls the pad's key state and edge-detects
-  presses (a held key is latched, so it fires once per press); on a fresh
-  press it issues a one-shot `agent.focus` for that agent's pane. Key
-  assignment is sticky: an agent keeps its key for as long as it stays in
-  the list (new agents take the next free key in list order), so keys don't
-  jump around when states change or agents come and go.
+### 1. Flash firmware 3.1.32-herdr
 
-## Requirements
+Install [`dfu-util`](http://dfu-util.sourceforge.net/):
 
-- Rust toolchain (the `[[build]]` hook runs `cargo build --release`).
-- `libhidapi` (the `hidapi` crate builds it; on Linux `libhidapi-hidraw` is
-  used).
-- herdr `>= 0.8.0` running (with its Unix socket), and the duckyPad flashed
-  with the updated firmware and plugged in.
+```bash
+# macOS
+brew install dfu-util
 
-## Build
+# Linux (Debian / Ubuntu)
+sudo apt install dfu-util
+```
+
+1. **Hold the DFU button** on the back of the pad, then plug in USB; release after it enumerates
+2. From **this repo's root**:
+
+```bash
+dfu-util --device 0483:df11 -a 0 -D firmware/duckypad_v3.1.32-herdr.dfu
+```
+
+3. Press **RESET** on the pad (or unplug/replug)
+4. Boot OLED should show **`duckyPad V3.1.32`**
+
+Prebuilt file: [GitHub Release v3.1.32](https://github.com/botio/duckyPad-herdr/releases/tag/v3.1.32).  
+Stock recovery and screenshots: [`firmware_updates_and_version_history.md`](../firmware_updates_and_version_history.md).
+
+### 2. Write a Herdr profile
+
+1. Connect the pad with [duckyPad Configurator **5.0.29+**](https://github.com/botio/duckyPad-Configurator)
+2. **ADD HERDR PROFILE**, then **SAVE** at the bottom onto the SD card
+3. On the pad, **+ / −** until that Herdr profile is selected
+4. OLED title should be **`H:Herdr`** (or `H:` plus the name you gave it)
+
+The SD marker must be exactly `HERDR_PROFILE 1`. A renamed profile without that marker **does not** enter Herdr.
+
+### 3. Install the Bridge
+
+You need [Rust](https://rustup.rs/) (`cargo`). `herdr` should be on PATH.
 
 ```bash
 cd herdr-ducky-pad
-cargo build --release
-```
-
-## Install (build + user service)
-
-One script installs everything on both **Linux and macOS** — it builds
-the daemon and runs it as a **user service** (systemd user unit on Linux,
-launchd LaunchAgent on macOS; herdr's `[[startup]]` hooks are one-shot and
-must exit, so a service is the right supervisor for a long-lived daemon):
-
-```bash
 ./install.sh
 ```
 
-It is idempotent — re-run it after pulling updates. It:
+The script builds the daemon, registers the herdr plugin, and installs a **user service that starts at login**. Re-run after `git pull`; it is idempotent.
 
-1. builds the daemon (`cargo build --release`);
-2. registers the plugin with herdr (`herdr plugin link`, when herdr is on
-   PATH);
-3. installs and (re)starts the service:
-   - **Linux**: `~/.config/systemd/user/ducky-pad-bridge.service`
-   - **macOS**: `~/Library/LaunchAgents/com.botio.ducky-pad-bridge.plist`
+| OS | Installed as | Status | Logs |
+|----|--------------|--------|------|
+| Linux | `~/.config/systemd/user/ducky-pad-bridge.service` | `systemctl --user status ducky-pad-bridge` | `journalctl --user -u ducky-pad-bridge -f` |
+| macOS | LaunchAgent `com.botio.ducky-pad-bridge` | `launchctl list \| grep ducky-pad-bridge` | `tail -f /tmp/ducky-pad-bridge.log` |
 
-Status & logs:
+### 4. macOS required: Input Monitoring
 
-- **Linux**: `systemctl --user status ducky-pad-bridge`,
-  `journalctl --user -u ducky-pad-bridge -f`
-- **macOS**: `launchctl list | grep ducky-pad-bridge`,
-  `tail -f /tmp/ducky-pad-bridge.log`
+macOS will **not** let a launchd CLI binary open keyboard HID (`0xE00002E2 not permitted`).  
+`install.sh` copies the daemon into:
 
-On macOS, `hidutil list` may show duckyPad `0483:d11c` with primary
-Usage Page `1` / Usage `6` (Keyboard). The Bridge selects it by VID/PID:
-macOS opens the whole HID device, not a Windows-style collection handle.
-The `macos-shared-device` hidapi feature opens it without seizing the keyboard.
-Shared access does not bypass macOS privacy controls: grant Input Monitoring
-to the `ducky-pad-bridge` executable used by launchd, then restart the service.
-`herdr: ... agent(s)` confirms only the socket connection; `DRYRUN OUT`
-does not reach the pad. Look for `duckyPad: opened HID device`, then verify
-the display and agent-key response on the physical pad.
+`~/Library/Application Support/ducky-pad-bridge/DuckyPadBridge.app`
 
-Manual install (no script): `cargo build --release`, then create and
-enable the service file yourself — `install.sh` shows the exact
-unit/plist contents.
+1. System Settings → Privacy & Security → **Input Monitoring**
+2. **+** add that **DuckyPadBridge.app** (not `target/release/ducky-pad-bridge`)
+3. Toggle it off and on
+4. Restart:
 
-## Test without the pad (dry run)
+```bash
+launchctl kickstart -k "gui/$(id -u)/com.botio.ducky-pad-bridge"
+```
+
+**Every** `./install.sh` needs step 3 again (ad-hoc signature changes).
+
+### 5. Confirm it works
+
+Log **must** contain:
+
+```
+duckyPad: opened HID device
+herdr: N agent(s) ...
+```
+
+Log **must not** contain:
+
+| Line | Meaning |
+|------|---------|
+| `DRYRUN OUT` | Command never reached the pad (HID not open) |
+| `0xE00002E2` / `not permitted` | Input Monitoring not granted to **DuckyPadBridge.app** |
+| `herdr.sock: No such file` | herdr is not running |
+
+On the pad:
+
+- OLED: `H:Herdr`, cells like `omp` / `pi`, empty `-`
+- Agent keys lit by state; key 15 white at rest
+- Press an agent key → herdr focuses that pane
+
+---
+
+## Daily use
+
+1. Open **herdr**
+2. **+ / −** to the **Herdr profile** (OLED title `H:…`)
+3. Leave the Bridge service running (it starts at login after install)
+
+| Action | Result |
+|--------|--------|
+| Colors on keys 1–14 | Agent state (table below) |
+| Press key 1–14 | Focus that herdr agent |
+| Press key 15 | **F9** by default (red while held, white at rest) |
+| Write `key15.dsb` in the Configurator | Key 15 runs that macro instead of F9 |
+| **+ / −** off Herdr | That profile's own names and macros return |
+
+### Colors
+
+| herdr state | Key color |
+|-------------|-----------|
+| `blocked` | red |
+| `working` | green |
+| `done` | blue |
+| `unknown` | amber |
+| `idle` | dim gray |
+
+More than 14 agents: first 14 in herdr list order; extras wait for a free slot. Slots are sticky across state changes.
+
+Change colors: Configurator **5.0.29+ → HERDR → STATUS COLORS → SAVE COLORS**. No JSON editor.  
+Linux: `~/.config/duckyPad/herdr.json`  
+macOS: `~/Library/Application Support/duckyPad/herdr.json`
+
+---
+
+## Update / restart
+
+```bash
+cd herdr-ducky-pad
+git pull
+./install.sh
+```
+
+Restart only:
+
+```bash
+# Linux
+systemctl --user restart ducky-pad-bridge
+
+# macOS
+launchctl kickstart -k "gui/$(id -u)/com.botio.ducky-pad-bridge"
+```
+
+After a macOS reinstall: toggle **Input Monitoring** for DuckyPadBridge.app off/on.
+
+---
+
+## Troubleshooting
+
+| Symptom | Check |
+|---------|--------|
+| OLED is not `H:…` | Herdr profile not selected (**+ / −**), or Configurator never SAVE'd |
+| Grid is all `-`, keys dark | HID not open, or herdr down. Read the log |
+| Log has `opened HID` but pad still dark | Firmware is not 3.1.32-herdr, or Herdr profile not selected |
+| `DRYRUN OUT` | No pad, or HID open failed. On Mac, Input Monitoring first |
+| `0xE00002E2 not permitted` | Add **DuckyPadBridge.app**, not the CLI path |
+| `herdr.sock: No such file` | Start herdr. The Bridge looks in `~/.config/herdr/herdr.sock` |
+| herdr has agents, pad does nothing | Log needs **both** `opened HID device` **and** `herdr: N agent(s)` |
+| Linux sees USB but cannot open | `lsusb` should show `0483:d11c`; fix hidraw udev / group if needed |
+| Flash seemed to do nothing | Must be in DFU (hold DFU, then plug in). Press RESET after flash |
+
+Named herdr session:
+
+```bash
+export HERDR_SOCKET_PATH=/path/to/herdr.sock
+```
+
+More log: `RUST_LOG=debug` in the Linux unit / macOS plist, then restart the service.
+
+---
+
+## Advanced
+
+### Dry run without a pad
 
 ```bash
 DUCKY_DRY_RUN=1 ./target/release/ducky-pad-bridge
 ```
 
-The daemon still connects to herdr and logs every HID write it *would* send
-(`DRYRUN OUT cmd=34 ...`), so you can watch the computed colors/OLED without
-the physical device. If the pad isn't plugged in, the daemon also falls back
-to dry run automatically.
+Still talks to herdr and logs HID writes as `DRYRUN OUT`.  
+**A working live pad must not print that line.** Unplugged pads also fall back to dry-run.
 
-## Building & flashing the firmware
+### Manual install (no script)
 
-The pad side is the stock duckyPad EVO firmware plus four herdr
-custom-HID commands (`34` RGB frame, `35` OLED text, `36` Bridge availability,
-`37` agent-key state).
+`cargo build --release`, then write the systemd unit / LaunchAgent yourself. `install.sh` is the source of truth.  
+On macOS the LaunchAgent **must** run the binary inside **DuckyPadBridge.app**, not `target/release/ducky-pad-bridge`.
 
-**Flash it — no Keil, no toolchain needed.** The pre-built **v3.1.32-herdr**
-image is built with pinned ARM GNU Toolchain 13.2.1. Host regressions cover
-profile ownership, foreground RGB/OLED handoff, continuous NeoPixel enable,
-Herdr entry without painting profile BG onto empty agent keys, file-access
-exclusion, navigation, key 15 script-vs-F9 fallback, and F9 release. These do
-not verify LED waveforms on hardware.
+### Rebuild firmware from source
 
-```bash
-dfu-util --device 0483:df11 -a 0 -D ../firmware/duckypad_v3.1.32-herdr.dfu
-```
+Not for normal use. Only if you edit the C:
 
-The OLED boot screen shows `duckyPad V3.1.32` once it's running. The full
-procedure (screenshots, and recovery by re-flashing the stock
-`../firmware/duckypad_v3.0.4.dfu`) is in the main repo:
-[`firmware_updates_and_version_history.md`](../firmware_updates_and_version_history.md).
+- **Keil µVision** (free MDK for STM32F072): open `../firmware/evo/MDK-ARM/lul.uvprojx`, Rebuild (F7)
+- `arm-none-eabi-gcc` cross build (how the prebuilt image is made)
 
-Firmware 3.1.32+ **requires a microSD card with a selected Herdr profile**.
-Starting the Bridge alone, or starting without a profile, cannot take over
-the pad. Existing Bridge binaries use the same wire commands; no reinstall
-is needed solely for profile-based ownership or the configurable key 15.
+### HID protocol (firmware authors)
 
-When key 15 has no script, it sends F9 using standard USB keyboard reports
-(usage `0x42`), white at rest and red while held. A `key15.dsb` script replaces
-F9 and runs like any other macro key. Leaving the Herdr profile or entering
-SD file access releases F9 and cancels any unsent press. F9 is serviced
-locally at a 1ms foreground cadence with 5ms debounce; busy USB reports are
-retried. These are firmware scheduling intervals, not a measured host input
-latency guarantee.
+OUT (host → pad), report id `5`, 64 bytes:
 
-**Rebuilding from source — only if you modify the C code.** Either:
+- `[0]=5, [1]=0, [2]=cmd`
+- `cmd 34` RGB: `[3..47]` = 15 × `(R,G,B)`
+- `cmd 35` OLED key names: `[3]=len(≤56), [4..]` 15 cells × 4 ASCII (firmware paints the grid; title `H:<profile>` is firmware-owned)
+- `cmd 36` Bridge online: `[3]=1` enable, `0` leave
+- `cmd 37` read keys: no payload
 
-- **Keil µVision** (ST ships a free MDK license for the STM32F072 "F0"
-  parts): open `../firmware/evo/MDK-ARM/lul.uvprojx`, Rebuild (F7), and
-  flash the Keil output the same way; or
-- an `arm-none-eabi-gcc` cross build — the pre-built image in the repo was
-  produced that way.
-## End-to-end test (with the pad)
+IN (pad → host), report id `4`, reply to `37`:
 
-1. **Build & flash the firmware** (see [Building & flashing the firmware](#building--flashing-the-firmware) above).
-2. **Plug in** the duckyPad (USB) and start **herdr** in a real session with a
-   few agents.
-3. **Start the daemon** — run `./install.sh` from this directory; it builds
-   and starts the user service.
-4. **Observe:**
-   - Each of the first 14 agents lights a key in its state color; when an
-     agent moves to `blocked` it turns red, `working` green, `done` blue,
-     `idle` dim.
-   - Key 15 is **white** at rest; pressing or holding it sends **F9** and
-     makes it **red** until release.
-   - The **OLED** lists the mapped agents (`1:name 2:name ...`).
-   - **Press an agent key** → herdr focuses that agent's pane.
+- `[0]=4, [1]=0xF1, [2]=0 (OK), [3..7]` = 32-bit little-endian bitfield  
+  bit `n` = key `n+1` held. The Bridge uses the low 15 bits for edge detect.
 
-## Troubleshooting
-
-- **No lights / no focus:** is the pad in "herdr mode"? The daemon sends
-  `cmd 36` on start. Check `dmesg` / `lsusb` for the device (`483:d11c`), and
-  that `libhidapi` can see it (permissions: add a udev rule or run as root).
-- **`herdr not reachable` in the log:** herdr isn't running, or the socket
-  path differs. Set `HERDR_SOCKET_PATH=/path/to/herdr.sock` if herdr uses a
-  non-default path (e.g. a named session).
-- **Logs:** set `RUST_LOG=debug` for more detail.
-
-## The pad's protocol (reference)
-
-- **OUT** (host → pad), report id `5`, 64-byte buffer:
-  - `[0]=5, [1]=0, [2]=cmd`
-  - `cmd 34` (RGB): `[3..47]` = 15 × `(R,G,B)`, key order.
-  - `cmd 35` (OLED): `[3]=len(≤56), [4..]` = UTF-8 text (`\n` = new line).
-  - `cmd 36` (mode): `[3]=1` enter herdr mode, `0` leave.
-  - `cmd 37` (key state): no payload; the pad samples all switches and
-    answers with the IN report below.
-- **IN** (pad → host), report id `4`: the key-state answer to `37` is
-  `[0]=4, [1]=0xF1, [2]=0 (OK), [3..7]` = 32-bit little-endian bitfield,
-  bit `n` (0-based) set = key `n+1` physically pressed. The daemon reads
-  the low 15 bits (the 15 agent keys) and edge-detects on them.
+Firmware accepts 34/35 only while a **Herdr profile is selected** and the Bridge has sent `cmd 36`. Key polls are unanswered during SD file access.

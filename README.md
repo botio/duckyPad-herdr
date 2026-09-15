@@ -15,18 +15,18 @@ Using a [turing-complete scripting language](https://dekunukem.github.io/duckyPa
 
 ## herdr Support / herdr 支援
 
-**English:** duckyPad can also serve as a **herdr light board**: its 15 keys
-light up one per herdr agent (colored by state — working green, blocked red,
-done blue, idle dim), pressing a key focuses that agent's pane, and the OLED
-lists the mapped agents. A small Rust daemon bridges the pad to herdr's
-API, and the prebuilt **v3.1.0-herdr** firmware ships in this repo.
-[Install instructions →](herdr-ducky-pad/README.md)
+**English:** duckyPad can also serve as a **herdr light board**: keys 1–14
+light one herdr agent each (working green, blocked red, done blue, idle dim),
+key 15 is a local F9 shortcut, and the OLED shows `H:Herdr` plus a grid of
+agent names. Flash firmware **v3.1.32-herdr**, add a Herdr profile in
+Configurator 5.0.29+, then run `herdr-ducky-pad/install.sh`.
+[Install / usage →](herdr-ducky-pad/README.md)
 
-**繁體中文：**duckyPad 也可以當 **herdr 光板**：15 顆按鍵各自對應一個 herdr
-agent（依狀態上色——working 綠、blocked 紅、done 藍、idle 暗），按下按鍵就
-能 focus 那個 agent 的 pane，OLED 會列出對應的 agents。一個小小的 Rust
-daemon 把 pad 接到 herdr 的 API，repo 裡附了預編的 **v3.1.0-herdr** 韌體。
-[安裝說明 →](herdr-ducky-pad/README.zh-TW.md)
+**繁體中文：**duckyPad 也可以當 **herdr 光板**：1–14 鍵各對一個 herdr agent
+（working 綠、blocked 紅、done 藍、idle 暗），第 15 鍵是本機 F9，OLED 顯示
+`H:Herdr` 和格子裡的 agent 名。刷韌體 **v3.1.32-herdr**，用 Configurator
+5.0.29+ 寫入 Herdr profile，再跑 `herdr-ducky-pad/install.sh`。
+[安裝與使用 →](herdr-ducky-pad/README.zh-TW.md)
 
 ## Get One
 
