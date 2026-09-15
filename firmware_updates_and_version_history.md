@@ -4,6 +4,13 @@
 
 -----
 
+## Herdr fork: v3.1.26
+
+- No-SD boot: after a failed `mount_sd()`, send a real NeoPixel all-off frame. `idle_loop` re-latches off every 200ms so SD SPI clocks that leaked into the shared MOSI line cannot stay green under `Please Insert SD card`.
+- Hold `LED_DATA_EN` low for the whole SD SPI reinit so DeInit/dummy bytes cannot latch the WS2812 chain.
+
+[Release link: v3.1.26](https://github.com/botio/duckyPad-herdr/releases/tag/v3.1.26)
+
 ## Herdr fork: v3.1.25
 
 - Clear `herdr_bridge_enabled` on every profile switch. A sticky "bridge up" flag from a previous session no longer keeps agent keys open to stale RGB / SWCOLOR while waiting for a real cmd36.

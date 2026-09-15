@@ -200,13 +200,18 @@ UART_HandleTypeDef huart1;
   Clear herdr_bridge_enabled on every profile switch so Herdr idle cannot
   keep a sticky "bridge up" flag; agent keys stay dark until cmd36
 
+  3.1.26
+  No-SD / no-profile idle: SD SPI shares MOSI with NeoPixels. After a failed
+  mount, send a real all-off frame and keep the chain dark in idle_loop so
+  leaked SD clocks cannot stay latched as green.
+
 */
 
 uint32_t current_tick;
 
 uint8_t fw_version_major = 3;
 uint8_t fw_version_minor = 1;
-uint8_t fw_version_patch = 25;
+uint8_t fw_version_patch = 26;
 uint8_t dsvm_version = 2;
 
 /* USER CODE END PV */
@@ -305,6 +310,7 @@ int main(void)
   if(mount_sd())
   {
     draw_nosd();
+    neopixel_off();
     idle_loop();
   }
 
@@ -313,6 +319,7 @@ int main(void)
   if(scan_profiles())
   {
     draw_noprofile();
+    neopixel_off();
     idle_loop();
   }
   

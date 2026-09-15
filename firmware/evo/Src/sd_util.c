@@ -32,6 +32,9 @@ enum sd_speed { SD_SPEED_INVALID, SD_SPEED_400KHZ, SD_SPEED_25MHZ };
 
 static void spi_set_speed(enum sd_speed speed)
 {
+  // NeoPixel shares SPI1 MOSI. Keep the LED buffer off for the whole SD
+  // session so DeInit/dummy clocks cannot latch into the WS2812 chain.
+  HAL_GPIO_WritePin(LED_DATA_EN_GPIO_Port, LED_DATA_EN_Pin, GPIO_PIN_RESET);
   HAL_SPI_DeInit(&hspi1);
   hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
   hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_128;
@@ -40,7 +43,6 @@ static void spi_set_speed(enum sd_speed speed)
   HAL_SPI_Init(&hspi1);
   u8 dummy = 0;
   HAL_SPI_Transmit(&hspi1, &dummy, 1, 500);
-  // HAL_Delay(2);
 }
 
 /* SD card is connected to SPI1, PA4-7 */
