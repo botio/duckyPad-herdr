@@ -18,13 +18,13 @@ pub const VID: u16 = 0x0483;
 pub const PID: u16 = 0xd11c;
 
 /// Usage (Counted Buffer) from the Report 4/5 custom-HID collection.
-/// The device also exposes keyboard/media/mouse collections under the same
-/// VID/PID, so `HidApi::open(VID, PID)` is ambiguous and can select a handle
-/// that never receives the custom IN reports.
+/// Windows exposes separate keyboard/media/mouse collection handles, so its
+/// selection must require the custom collection. macOS opens the whole HID
+/// device and may enumerate only its primary Keyboard usage (0x0006).
 const CUSTOM_USAGE: u16 = 0x003A;
 
-fn matches_custom_collection(vendor_id: u16, product_id: u16, usage: u16) -> bool {
-    vendor_id == VID && product_id == PID && usage == CUSTOM_USAGE
+fn matches_device(vendor_id: u16, product_id: u16, usage: u16, macos: bool) -> bool {
+    vendor_id == VID && product_id == PID && (macos || usage == CUSTOM_USAGE)
 }
 
 const CMD_RGB: u8 = 34;
@@ -121,23 +121,34 @@ impl DuckyPad {
 
     fn open_device() -> Result<(hidapi::HidApi, hidapi::HidDevice)> {
         let hid = hidapi::HidApi::new()?;
-        let path = hid
+        let info = hid
             .device_list()
             .find(|info| {
-                matches_custom_collection(info.vendor_id(), info.product_id(), info.usage())
-            })
-            .map(|info| info.path().to_owned())
-            .ok_or_else(|| {
-                anyhow::anyhow!(
-                    "custom HID usage 0x{CUSTOM_USAGE:04x} not found for {VID:04x}:{PID:04x}"
+                matches_device(
+                    info.vendor_id(),
+                    info.product_id(),
+                    info.usage(),
+                    cfg!(target_os = "macos"),
                 )
+            })
+            .ok_or_else(|| {
+                if cfg!(target_os = "macos") {
+                    anyhow::anyhow!("HID device not found for {VID:04x}:{PID:04x}")
+                } else {
+                    anyhow::anyhow!(
+                        "custom HID usage 0x{CUSTOM_USAGE:04x} not found for {VID:04x}:{PID:04x}"
+                    )
+                }
             })?;
+        let path = info.path();
         log::info!(
-            "duckyPad: opening custom HID usage=0x{CUSTOM_USAGE:04x} path={}",
+            "duckyPad: opening HID usage_page=0x{:04x} usage=0x{:04x} path={}",
+            info.usage_page(),
+            info.usage(),
             path.to_string_lossy()
         );
         let dev = hid
-            .open_path(&path)
+            .open_path(path)
             .map_err(|e| anyhow::anyhow!("open {}: {e}", path.to_string_lossy()))?;
         log::info!("duckyPad: opened HID device");
         Ok((hid, dev))
@@ -375,8 +386,20 @@ mod tests {
     }
 
     #[test]
-    fn opens_counted_buffer_collection_not_keyboard_collection() {
-        assert!(matches_custom_collection(VID, PID, CUSTOM_USAGE));
-        assert!(!matches_custom_collection(VID, PID, 0x0006));
+    fn collection_selection_remains_strict_outside_macos() {
+        assert!(matches_device(VID, PID, CUSTOM_USAGE, false));
+        assert!(!matches_device(VID, PID, 0x0006, false));
+    }
+
+    #[test]
+    fn macos_selects_duckypad_with_keyboard_primary_usage() {
+        // Captured macOS Devices entries: Stream Deck, then duckyPad(2020).
+        let devices = [(0x0fd9, 0x006d, 1), (0x0483, 0xd11c, 6)];
+        let selected = devices
+            .iter()
+            .find(|&&(vid, pid, usage)| matches_device(vid, pid, usage, true));
+        assert_eq!(selected, Some(&devices[1]));
+        assert!(!matches_device(VID, 0xd11d, 6, true));
+        assert!(!matches_device(0x05ac, PID, 6, true));
     }
 }

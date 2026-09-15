@@ -95,6 +95,13 @@ LaunchAgent；herdr 的 `[[startup]]` hook 是「一次性、要結束」的，�
 - **macOS**：`launchctl list | grep ducky-pad-bridge`、
   `tail -f /tmp/ducky-pad-bridge.log`
 
+macOS 的 `hidutil list` 可能把 duckyPad `0483:d11c` 列為主要
+Usage Page `1`／Usage `6`（Keyboard）。Bridge 在 macOS 依 VID/PID
+選擇裝置，因為開啟的是整個 HID 裝置，不是 Windows 的獨立 collection。
+`herdr: ... agent(s)` 只證明 socket 已連線；`DRYRUN OUT` 不會送到 pad。
+請確認出現 `duckyPad: opened HID device`，再以實體 pad 的畫面及 agent
+按鍵反應確認通訊。
+
 不用腳本手動裝：`cargo build --release` 之後，自己建立並啟用那個
 服務檔——`install.sh` 裡面就是 unit/plist 的完整內容。
 

@@ -100,6 +100,13 @@ Status & logs:
 - **macOS**: `launchctl list | grep ducky-pad-bridge`,
   `tail -f /tmp/ducky-pad-bridge.log`
 
+On macOS, `hidutil list` may show duckyPad `0483:d11c` with primary
+Usage Page `1` / Usage `6` (Keyboard). The Bridge selects it by VID/PID:
+macOS opens the whole HID device, not a Windows-style collection handle.
+`herdr: ... agent(s)` confirms only the socket connection; `DRYRUN OUT`
+does not reach the pad. Look for `duckyPad: opened HID device`, then verify
+the display and agent-key response on the physical pad.
+
 Manual install (no script): `cargo build --release`, then create and
 enable the service file yourself — `install.sh` shows the exact
 unit/plist contents.
