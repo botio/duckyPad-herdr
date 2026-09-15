@@ -4,6 +4,13 @@
 
 -----
 
+## Herdr fork: v3.1.25
+
+- Clear `herdr_bridge_enabled` on every profile switch. A sticky "bridge up" flag from a previous session no longer keeps agent keys open to stale RGB / SWCOLOR while waiting for a real cmd36.
+- Herdr idle stays dark on keys 1–14 until the Bridge re-asserts availability; key 15 remains the local F9 shortcut color.
+
+[Release link: v3.1.25](https://github.com/botio/duckyPad-herdr/releases/tag/v3.1.25)
+
 ## Herdr fork: v3.1.24
 
 - While a Herdr profile is selected and the Bridge has not asserted availability (cmd 36), agent keys are re-cleared to black every 200ms so SWCOLOR/stale frames cannot stay green.

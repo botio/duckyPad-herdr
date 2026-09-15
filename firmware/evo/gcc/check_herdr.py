@@ -143,6 +143,7 @@ static void assert_frame(uint8_t value) {
   for(int i = 0; i < HERDR_F9_SWITCH; ++i)
     for(int c = 0; c < 3; ++c) assert(visible[i][c] == value);
 }
+
 static void assert_local_color(uint8_t r, uint8_t g, uint8_t b) {
   assert(visible[HERDR_F9_SWITCH][0] == r);
   assert(visible[HERDR_F9_SWITCH][1] == g);
@@ -162,8 +163,11 @@ int main(void) {
   physical_keys = 0x1ffff; poll_keys(keys); assert(key_reply == 0);
   process_keyevent(0, SW_EVENT_SHORT_PRESS); assert(macro_presses == 1);
   process_keyevent(SW_PLUS, SW_EVENT_RELEASE); assert(herdr_mode && current_profile_number == 2);
+  assert(herdr_bridge_enabled == 0);
   /* Herdr entry must not paint profile BG green onto empty agent keys. */
   assert(visible[0][0] == 0 && visible[0][1] == 0 && visible[0][2] == 0);
+  /* Bridge must re-assert cmd36 after profile entry. */
+  receive(host); hid_command_task(); assert(herdr_bridge_enabled == 1);
   before = draws;
   receive(frame); receive(text); assert(draws == before && oled_draws == 0);
   /* Back-to-back USB frames coalesce without touching the live LED buffer. */
@@ -195,6 +199,8 @@ int main(void) {
   /* Wrap backwards, press F9, then leave while physically held: release once. */
   physical_keys = 0; process_keyevent(SW_MINUS, SW_EVENT_RELEASE); herdr_key_task();
   assert(current_profile_number == 2 && herdr_mode);
+  assert(herdr_bridge_enabled == 0);
+  host[3] = 1; receive(host); hid_command_task();
   physical_keys = 1U << 14; now += 5; herdr_key_task(); now += 5; herdr_key_task();
   assert(report_count == 1 && last_report[3] == 0x42);
   process_keyevent(SW_PLUS, SW_EVENT_RELEASE); herdr_key_task();
@@ -203,6 +209,7 @@ int main(void) {
   process_keyevent(0, SW_EVENT_SHORT_PRESS); assert(macro_presses == 2);
   /* File access releases a sent F9 without repainting over SD operations. */
   physical_keys = 0; goto_profile(2); herdr_key_task();
+  host[3] = 1; receive(host); hid_command_task();
   physical_keys = 1U << 14; now += 5; herdr_key_task(); now += 5; herdr_key_task();
   assert(last_report[3] == 0x42);
   is_in_file_access_mode = 1; before = draws; herdr_key_task();
@@ -213,6 +220,8 @@ int main(void) {
                             DSB_ON_PRESS_EXISTS | DSB_ON_RELEASE_EXISTS};
   for(unsigned int s = 0; s < sizeof scripts; ++s) {
     goto_profile(2);
+    assert(herdr_bridge_enabled == 0);
+    host[3] = 1; receive(host); hid_command_task(); assert(herdr_bridge_enabled == 1);
     curr_pf_info.dsb_exists[HERDR_F9_SWITCH] = scripts[s];
     uint8_t *rest = curr_pf_info.sw_color_default[HERDR_F9_SWITCH];
     rest[0] = 13; rest[1] = 27; rest[2] = 41;

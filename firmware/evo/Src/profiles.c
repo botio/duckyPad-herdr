@@ -349,6 +349,10 @@ uint8_t goto_profile_without_updating_rgb_LED(uint8_t profile_number)
   // Herdr is a profile, not a remote override: the pad is only a herdr
   // light-board while this profile is selected. cmd36 no longer flips it.
   herdr_mode = curr_pf_info.is_herdr;
+  // Bridge must re-assert cmd36 after every profile change. A sticky
+  // herdr_bridge_enabled=1 from a previous session left SWCOLOR/stale RGB
+  // visible and skipped the dark-until-bridge path.
+  herdr_bridge_enabled = 0;
   draw_current_profile();
   save_settings(&dp_settings);
   return 0;

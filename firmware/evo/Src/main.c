@@ -196,13 +196,17 @@ UART_HandleTypeDef huart1;
   While Herdr is selected and Bridge has not asserted cmd36, re-paint agent
   keys black every 200ms so SWCOLOR/stale frames cannot stay green
 
+  3.1.25
+  Clear herdr_bridge_enabled on every profile switch so Herdr idle cannot
+  keep a sticky "bridge up" flag; agent keys stay dark until cmd36
+
 */
 
 uint32_t current_tick;
 
 uint8_t fw_version_major = 3;
 uint8_t fw_version_minor = 1;
-uint8_t fw_version_patch = 24;
+uint8_t fw_version_patch = 25;
 uint8_t dsvm_version = 2;
 
 /* USER CODE END PV */
