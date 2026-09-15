@@ -374,6 +374,16 @@ void goto_profile(uint8_t profile_number)
     }
   }
   neopixel_redraw_bg();
+  // Second hard clear after any SWCOLOR/SPS paint race.
+  if(herdr_mode)
+  {
+    for (int i = 0; i < HERDR_F9_SWITCH; ++i)
+      set_pixel_3color_update_buffer((uint8_t)i, 0, 0, 0);
+    if((curr_pf_info.dsb_exists[HERDR_F9_SWITCH]
+        & (DSB_ON_PRESS_EXISTS | DSB_ON_RELEASE_EXISTS)) == 0)
+      set_pixel_3color_update_buffer(HERDR_F9_SWITCH, 255, 255, 255);
+    neopixel_draw_current_buffer();
+  }
 }
 
 

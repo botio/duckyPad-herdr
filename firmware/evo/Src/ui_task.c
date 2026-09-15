@@ -9,6 +9,7 @@
 #include "usb_device.h"
 #include "usbd_customhid.h"
 #include "usbd_custom_hid_if.h"
+#include "hid_task.h"
 
 #define OLED_LINE_BUF_SIZE 32
 char oled_line_buf[OLED_LINE_BUF_SIZE];
@@ -157,9 +158,15 @@ void draw_current_profile(void)
   ssd1306_Fill(Black);
 
   memset(oled_line_buf, 0, OLED_LINE_BUF_SIZE);
-  snprintf(oled_line_buf, OLED_LINE_BUF_SIZE, "%s", profile_name_list[current_profile_number]);
-	ssd1306_SetCursor(center_line(strlen(oled_line_buf)), 0);
-	ssd1306_WriteString(oled_line_buf, Font_6x10, White);
+  /* H: prefix proves HERDR_PROFILE 1 is active (name alone is not enough). */
+  if(herdr_mode)
+    snprintf(oled_line_buf, OLED_LINE_BUF_SIZE, "H:%s",
+             profile_name_list[current_profile_number]);
+  else
+    snprintf(oled_line_buf, OLED_LINE_BUF_SIZE, "%s",
+             profile_name_list[current_profile_number]);
+  ssd1306_SetCursor(center_line(strlen(oled_line_buf)), 0);
+  ssd1306_WriteString(oled_line_buf, Font_6x10, White);
   draw_rtc_icon(0);
   ssd1306_Line(0,10,127,10,White); // title solid line
 

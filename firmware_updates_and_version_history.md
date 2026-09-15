@@ -4,6 +4,13 @@
 
 -----
 
+## Herdr fork: v3.1.23
+
+- OLED title shows `H:profilename` when Herdr mode is actually active.
+- After entering a Herdr profile, agent keys are hard-cleared to black (key 15 white) so SWCOLOR cannot remain lit without the Bridge.
+
+[Release link: v3.1.23](https://github.com/botio/duckyPad-herdr/releases/tag/v3.1.23)
+
 ## Herdr fork: v3.1.22
 
 - On Herdr profile load, agent-key default/user colors are forced to black (and again after SPS restore) so leftover `BG_COLOR`/`SWCOLOR` cannot light keys 1–14 before the Bridge connects.

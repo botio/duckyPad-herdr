@@ -188,13 +188,17 @@ UART_HandleTypeDef huart1;
   Zero Herdr agent-key colors at profile load and after SPS restore; tolerate
   HERDR_PROFILE values other than the exact string "HERDR_PROFILE 1"
 
+  3.1.23
+  OLED title shows H:name when Herdr mode is active; hard-clear agent LEDs
+  after profile entry so SWCOLOR cannot remain lit without Bridge
+
 */
 
 uint32_t current_tick;
 
 uint8_t fw_version_major = 3;
 uint8_t fw_version_minor = 1;
-uint8_t fw_version_patch = 22;
+uint8_t fw_version_patch = 23;
 uint8_t dsvm_version = 2;
 
 /* USER CODE END PV */
