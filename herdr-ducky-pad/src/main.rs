@@ -81,7 +81,7 @@ struct Daemon {
     /// Last RGB actually delivered to a live HID handle. `None` means the next
     /// push must refresh the pad (disconnect, or never synced).
     last_rgb: Option<[u8; 45]>,
-    last_oled: String,
+    last_oled_names: Option<[u8; 56]>,
     last_summary: String,
     last_relist: Instant,
     last_pad_retry: Instant,
@@ -107,7 +107,7 @@ impl Daemon {
             slot_map: SlotMap::default(),
             config,
             last_rgb: None,
-            last_oled: String::new(),
+            last_oled_names: None,
             last_summary: String::new(),
             last_relist: Instant::now(),
             last_pad_retry: Instant::now(),
@@ -152,7 +152,14 @@ impl Daemon {
             }
         }
 
-        // OLED title is firmware-owned (`H:<profile>`). Do not send cmd35.
+        let names = model::oled_key_names(&slots);
+        if force || self.last_oled_names.as_ref() != Some(&names) {
+            if let Err(e) = self.pad.set_oled_names(&names) {
+                log::warn!("set_oled_names: {e:#}");
+                return;
+            }
+            self.last_oled_names = Some(names);
+        }
     }
 
     /// Log a compact agent summary, but only when it actually changes (so a
@@ -206,7 +213,7 @@ impl Daemon {
                     self.agents.clear();
                     self.slot_map = SlotMap::default();
                     self.last_rgb = None;
-                    self.last_oled.clear();
+                    self.last_oled_names = None;
                     self.push_pad_state(true);
                 }
                 // Rate-limit the warning — a missing herdr.sock used to spam

@@ -4,6 +4,12 @@
 
 -----
 
+## Herdr fork: v3.1.32
+
+- Herdr OLED keeps `H:<profile>` and fills the 15-key grid with Bridge agent names (4 chars, empty stays `-`). No more `1:omp` dump.
+
+[Release link: v3.1.32](https://github.com/botio/duckyPad-herdr/releases/tag/v3.1.32)
+
 ## Herdr fork: v3.1.31
 
 - OLED title is firmware-owned: `H:<profile>` while Herdr is selected, then the normal profile name after +/-. Bridge cmd35 (`1:omp` lists) is ignored so it cannot overwrite or stick.

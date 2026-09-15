@@ -226,13 +226,17 @@ UART_HandleTypeDef huart1;
   OLED title stays firmware-owned: H:<profile> in Herdr, profile name after
   +/-. Ignore Bridge cmd35 so 1:omp lists cannot overwrite or stick.
 
+  3.1.32
+  Bridge cmd35 is 14×4 packed key names. Herdr OLED stays H:<profile> with
+  agent names in the key grid instead of "-" or a 1:omp dump.
+
 */
 
 uint32_t current_tick;
 
 uint8_t fw_version_major = 3;
 uint8_t fw_version_minor = 1;
-uint8_t fw_version_patch = 31;
+uint8_t fw_version_patch = 32;
 uint8_t dsvm_version = 2;
 
 /* USER CODE END PV */

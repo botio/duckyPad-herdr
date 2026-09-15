@@ -19,7 +19,6 @@
 
 #define HID_DP_TO_PC_USAGE_ID 4
 #define HID_TX_BUF_SIZE CUSTOM_HID_EPIN_SIZE
-#define HERDR_OLED_MAX_TEXT 56
 uint8_t hid_tx_buf[HID_TX_BUF_SIZE];
 
 volatile uint8_t needs_gv_save;
@@ -282,11 +281,33 @@ void herdr_set_rgb_frame(uint8_t* this_msg)
   neopixel_draw_current_buffer();
 }
 
-// Title is firmware-owned (`H:<profile>`). Bridge cmd35 used to fill the
-// panel with `1:omp` lines and then stick after +/- left Herdr.
+// Packed 14×4 ASCII names (cmd35). Firmware keeps H:<profile> and paints
+// each name in the key grid; empty slots stay "-". Key 15 is local F9.
 void herdr_set_oled_text(uint8_t* this_msg)
 {
-  (void)this_msg;
+  if(!herdr_mode || !herdr_bridge_enabled || is_in_file_access_mode)
+    return;
+  uint8_t len = this_msg[3];
+  if(len > HERDR_OLED_MAX_TEXT) len = HERDR_OLED_MAX_TEXT;
+  for(uint8_t i = 0; i < HERDR_F9_SWITCH; i++)
+  {
+    memset(curr_pf_info.sw_name[i], 0, KEYNAME_SIZE);
+    uint8_t off = (uint8_t)(i * 4);
+    if(off >= len)
+      continue;
+    uint8_t n = 4;
+    if(off + n > len) n = (uint8_t)(len - off);
+    if(n >= KEYNAME_SIZE) n = KEYNAME_SIZE - 1;
+    for(uint8_t k = 0; k < n; k++)
+    {
+      char ch = (char)this_msg[4 + off + k];
+      if(ch == 0 || ch == ' ')
+        break;
+      curr_pf_info.sw_name[i][k] = ch;
+    }
+  }
+  draw_current_profile();
+  neopixel_draw_current_buffer();
 }
 
 

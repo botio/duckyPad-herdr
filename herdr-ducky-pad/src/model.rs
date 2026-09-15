@@ -235,41 +235,17 @@ pub fn rgb_frame(
     out
 }
 
-/// Unused by the daemon: firmware owns the OLED title. Kept for tests.
-#[allow(dead_code)]
-pub fn oled_text(slots: &[Option<&Agent>]) -> String {
-    const LINE_LEN: usize = 18;
-    const MAX_LINES: usize = 4;
-    let mut lines: Vec<String> = Vec::new();
-    let mut cur = String::new();
+/// 14 agent slots × 4 ASCII bytes. Empty slots are NUL; firmware shows "-".
+pub fn oled_key_names(slots: &[Option<&Agent>]) -> [u8; 56] {
+    let mut out = [0u8; 56];
     for (i, slot) in slots.iter().enumerate().take(AGENT_SLOTS) {
         let Some(a) = slot else { continue };
-        let name: String = a.name.chars().take(9).collect();
-        let item = format!("{}:{} ", i + 1, name);
-        if cur.len() + item.len() > LINE_LEN && !cur.is_empty() {
-            lines.push(std::mem::take(&mut cur));
-            if lines.len() >= MAX_LINES {
-                return truncate_bytes(&lines.join("\n"), 56);
-            }
-        }
-        cur.push_str(&item);
+        let name: String = a.name.chars().take(4).collect();
+        let b = name.as_bytes();
+        let n = b.len().min(4);
+        out[i * 4..i * 4 + n].copy_from_slice(&b[..n]);
     }
-    if !cur.trim().is_empty() {
-        lines.push(cur);
-    }
-    lines.truncate(MAX_LINES);
-    truncate_bytes(&lines.join("\n"), 56)
-}
-
-fn truncate_bytes(s: &str, max: usize) -> String {
-    if s.len() <= max {
-        return s.to_string();
-    }
-    let mut end = max;
-    while end > 0 && !s.is_char_boundary(end) {
-        end -= 1;
-    }
-    s[..end].to_string()
+    out
 }
 
 #[cfg(test)]

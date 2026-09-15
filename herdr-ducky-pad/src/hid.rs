@@ -208,11 +208,11 @@ impl DuckyPad {
         self.write_cmd(CMD_RGB, frame)
     }
 
-    /// cmd 35: OLED text, `[len(<=56), bytes...]`, `\n` for line breaks.
-    pub fn set_oled_text(&mut self, text: &str) -> Result<()> {
-        let mut p = Vec::with_capacity(1 + text.len());
-        p.push(text.len().min(255) as u8);
-        p.extend_from_slice(text.as_bytes());
+    /// cmd 35: 14 packed 4-byte key names (firmware paints H:<profile> + grid).
+    pub fn set_oled_names(&mut self, names: &[u8; 56]) -> Result<()> {
+        let mut p = Vec::with_capacity(1 + names.len());
+        p.push(56);
+        p.extend_from_slice(names);
         self.write_cmd(CMD_OLED, &p)
     }
 

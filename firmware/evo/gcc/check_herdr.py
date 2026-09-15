@@ -81,6 +81,7 @@ static int USBD_CUSTOM_HID_SendReport(void *device, uint8_t *data, size_t size) 
   memcpy(last_report, data, size); ++report_count; return USBD_OK;
 }
 static void send_hid_cmd_response(void *data) { assert(!in_usb); ++key_replies; memcpy(&key_reply, (uint8_t*)data + 3, sizeof key_reply); }
+static void draw_current_profile(void) {}
 ''' + span("Src/hid_task.c", "volatile uint8_t needs_gv_save", "// Mirror diagnostic:") + '\n' + span("Src/hid_task.c", "static uint8_t f9_sample;", "void herdr_key_task(") + '\n' + block("Src/hid_task.c", "void herdr_key_task(") + '\n' + block("Src/hid_task.c", "void herdr_set_rgb_frame(") + '\n' + block("Src/hid_task.c", "void herdr_set_oled_text(") + r'''
 static void handle_hid_command(uint8_t *this_msg) {
   uint8_t command_type = this_msg[2];
@@ -105,7 +106,6 @@ static uint8_t load_profile(uint8_t n) {
   else curr_pf_info.dsb_exists[0] = DSB_ON_PRESS_EXISTS;
   return 0;
 }
-static void draw_current_profile(void) {}
 static void save_settings(dp_global_settings *settings) {}
 static void load_persistent_state(void) {}
 ''' + block("Src/neopixel.c", "void neopixel_redraw_bg(") + r'''
@@ -173,8 +173,8 @@ int main(void) {
   /* Back-to-back USB frames coalesce without touching the live LED buffer. */
   memset(frame + 3, 99, 45); receive(frame); assert(draws == before);
   hid_command_task(); assert_frame(99); assert(oled_draws == 0);
-  /* RGB apply only; Bridge OLED is ignored. */
-  assert(draws == before + 1);
+  /* RGB apply + post-title LED redraw (names packed into draw_current_profile). */
+  assert(draws == before + 2);
   assert(visible[14][0] == 255 && visible[14][1] == 255);
   poll_keys(keys); assert(key_reply == 0x3fff); /* No F9 or navigation bits. */
   process_keyevent(0, SW_EVENT_SHORT_PRESS); process_keyevent(0, SW_EVENT_RELEASE);
